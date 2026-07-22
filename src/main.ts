@@ -6,7 +6,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { Router, Route } from './router';
 import { renderPersonal } from './views/personal';
-import { renderTeam } from './views/team';
+import { renderTeam, setSelectedProjectId, getCurrentContainer, getSelectedProjectId, setTeamRange, getTeamRange } from './views/team';
 import { renderTaskDetail } from './views/task-detail';
 import { renderSettings } from './views/settings';
 
@@ -223,6 +223,65 @@ document.addEventListener('DOMContentLoaded', () => {
     await invoke('create_employee', { input: { name, role, email } });
     location.reload();
   } catch (e) { alert(`创建失败: ${e}`); }
+};
+
+// ─── 团队面板：项目管理 ───────────────────────────
+
+(window as any).setTeamRangeHandler = (r: string) => {
+  setTeamRange(r);
+  const container = getCurrentContainer();
+  if (container) renderTeam(container);
+};
+
+(window as any).selectProject = async (id: string) => {
+  const current = getSelectedProjectId();
+  setSelectedProjectId(current === id ? null : id);
+  const container = getCurrentContainer();
+  if (container) await renderTeam(container);
+};
+
+(window as any).showNewProjectForm = () => {
+  const form = document.getElementById('new-project-form');
+  if (form) form.style.display = form.style.display === 'none' ? '' : 'none';
+};
+
+(window as any).createProject = async () => {
+  const name = (document.getElementById('np-name') as HTMLInputElement)?.value?.trim();
+  if (!name) return alert('请输入项目名称');
+  const desc = (document.getElementById('np-desc') as HTMLInputElement)?.value?.trim();
+  const priority = parseInt((document.getElementById('np-priority') as HTMLSelectElement)?.value || '2');
+  try {
+    await invoke('create_project', { input: { name, description: desc, priority } });
+    const container = getCurrentContainer();
+    if (container) await renderTeam(container);
+  } catch (e) {
+    alert('创建失败: ' + e);
+  }
+};
+
+(window as any).showAssignForm = (projectId: string) => {
+  const form = document.getElementById(`assign-form-${projectId}`);
+  if (form) form.style.display = form.style.display === 'none' ? '' : 'none';
+};
+
+(window as any).confirmAssign = async (projectId: string) => {
+  const title = (document.getElementById(`at-title-${projectId}`) as HTMLInputElement)?.value?.trim();
+  const employeeId = (document.getElementById(`at-employee-${projectId}`) as HTMLInputElement)?.value?.trim();
+  const effort = Number((document.getElementById(`at-effort-${projectId}`) as HTMLInputElement)?.value || 50);
+  const start = (document.getElementById(`at-start-${projectId}`) as HTMLInputElement)?.value;
+  const end = (document.getElementById(`at-end-${projectId}`) as HTMLInputElement)?.value;
+  if (!title) return alert('请输入任务标题');
+  if (!employeeId) return alert('请输入员工ID');
+  if (!start || !end) return alert('请选择起止时间');
+  try {
+    await invoke('assign_task_to_employee', {
+      input: { employeeId, title, effortPercent: effort, startTime: new Date(start).toISOString(), endTime: new Date(end).toISOString(), projectId }
+    });
+    const container = getCurrentContainer();
+    if (container) await renderTeam(container);
+  } catch (e) {
+    alert('分配失败: ' + e);
+  }
 };
 
 (window as any).assignTask = async (empId: string) => {
