@@ -32,21 +32,35 @@ listen<string>('navigate', (e) => {
 });
 
 // ─── 启动 ───────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => router.start());
+document.addEventListener('DOMContentLoaded', () => {
+  router.start();
+  // 每 30 秒自动刷新当前视图
+  setInterval(() => {
+    if (location.hash) {
+      router.navigate();
+    }
+  }, 30_000);
+});
 
 // ─── 全局事件处理器（供 HTML 内联 / STAR 面板使用）───
 
 // 创建任务（由 create-task 表单调用）
 (window as any).createTask = async () => {
-  const title = (document.getElementById('task-title') as HTMLInputElement).value;
-  const start = (document.getElementById('task-start') as HTMLInputElement).value;
-  const end   = (document.getElementById('task-end')   as HTMLInputElement).value;
-  const effort = Number((document.getElementById('task-effort') as HTMLInputElement).value || 100);
-  await invoke('create_task', {
-    input: { title, description: '', priority: 2, start_time: start, end_time: end, effort_percent: effort, category: 'personal' }
-  });
-  // 刷新当前视图
-  router.navigate();
+  const title = (document.getElementById('task-title') as HTMLInputElement)?.value;
+  const start = (document.getElementById('task-start') as HTMLInputElement)?.value;
+  const end   = (document.getElementById('task-end') as HTMLInputElement)?.value;
+  const effort = Number((document.getElementById('task-effort') as HTMLInputElement)?.value || 100);
+  try {
+    await invoke('create_task', {
+      input: { title, description: '', priority: 2, start_time: start, end_time: end, effort_percent: effort, category: 'personal' }
+    });
+    // Refresh current view
+    location.hash = location.hash || '#personal';
+    location.reload();
+  } catch (e) {
+    console.error('创建任务失败', e);
+    alert(`创建失败: ${e}`);
+  }
 };
 
 // STAR 面板：记录精力事件（Task 4 实现完整逻辑）
