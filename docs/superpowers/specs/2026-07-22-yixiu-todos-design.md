@@ -71,6 +71,73 @@ MVP 核心视图。功能包括：
 
 ## 3. 核心功能
 
+### 3.0 STAR 任务定义体系
+
+每个任务都按 **STAR 方法论** 分解为四个阶段，每个阶段可记录多条事件，并支持暂停/恢复：
+
+| 字母 | 英文 | 中文 | 需要回答的问题 |
+|------|------|------|--------------|
+| S | Situation | 背景 | 当时是什么场景？约束是什么？ |
+| T | Task | 任务 | 你被要求做什么？目标是什么？ |
+| A | Action | 行动 | 你具体做了什么？（不是"我们"） |
+| R | Result | 结果 | 产生了什么可衡量的结果？ |
+
+#### 3.0.1 多事件与暂停
+
+每个 STAR 阶段可以记录**多个事件**，事件的类型包括：
+
+| 事件类型 | 含义 | 视觉效果 |
+|---------|------|---------|
+| `note` | 普通记录/更新 | 时间线节点 |
+| `blocker` | 遇到阻碍 | 🔴 醒目色标 |
+| `pause` | 工作暂停 | ⏸️ 暂停标记 |
+| `resume` | 恢复工作 | ▶️ 恢复标记 |
+
+> 例如：一个任务的 Action 阶段可能经历：写代码 → 遇到 bug(blocker) → 暂停(pause) → 恢复(resume) → 提交 PR，每个步骤都是一条独立事件记录。
+
+#### 3.0.2 暂停跟踪
+
+任务级别支持暂停状态，记录每次暂停的原因和时长：
+
+- 暂停期间，精力占用面板不计该任务
+- 冲突检测跳过暂停中的任务
+- 前端显示累计暂停时长和暂停历史
+
+#### 3.0.3 前端展示
+
+每个任务的详情面板展示四个 STAR 区域（可折叠）：
+
+```
+┌─ 一修Todo ─────────────────────────────────┐
+│ ┌─[S] 背景 ──────────────────────────┐      │
+│ │ 当时是什么场景？约束是什么？         │      │
+│ │ ○ 2026-07-20 接到需求，deadline 3天  │      │
+│ │ ○ 2026-07-21 确认约束：只做后台API   │      │
+│ └──────────────────────────────────────┘      │
+│ ┌─[T] 任务 ──────────────────────────┐      │
+│ │ 你被要求做什么？目标是什么？         │      │
+│ │ ○ 实现用户认证模块                   │      │
+│ └──────────────────────────────────────┘      │
+│ ┌─[A] 行动 ──────────────────────────┐      │
+│ │ 你具体做了什么？                    │      │
+│ │ ○ 14:00 编写登录接口                │      │
+│ │ 🔴 14:30 遇到数据库连接问题(blocker) │      │
+│ │ ⏸️ 14:35 暂停(等待DBA回复)          │      │
+│ │ ▶️ 16:20 恢复(问题已解决)           │      │
+│ │ ○ 16:30 完成单元测试                │      │
+│ └──────────────────────────────────────┘      │
+│ ┌─[R] 结果 ──────────────────────────┐      │
+│ │ 产生了什么可衡量的结果？            │      │
+│ │ ○ 认证模块全部测试通过              │      │
+│ └──────────────────────────────────────┘      │
+│ [状态: 已完成]  [暂停 1次 共1h45min]  │      │
+└──────────────────────────────────────────────┘
+```
+
+#### 3.0.4 扩展的 status
+
+- `pending` / `active` / `done` / `postponed` / **`paused`**（新增）
+
 ### 3.1 精力占用面板
 
 每个任务分配 `effort_percent`（0-200）。系统将一天按任务的起止时间切分，计算每个时间切片内的精力总和：
@@ -129,13 +196,44 @@ MVP 核心视图。功能包括：
 
 | 表名 | 作用 |
 |------|------|
-| `tasks` | 个人任务主表 |
+| `tasks` | 个人任务主表（status 扩充 `paused`） |
+| `task_events` | STAR 事件日志（每行一个 S/T/A/R 事件） |
+| `task_pauses` | 暂停记录（暂停 → 恢复配对，含原因和时长） |
 | `task_overlaps` | 自动检测的冲突记录 |
 | `reminders` | 提醒规则 |
 | `force_rules` | 强制录入规则 |
 | `force_events` | 强制规则触发事件日志 |
 | `employees` | 员工主表 |
 | `employee_tasks` | 分配给员工的任务 |
+
+#### 新增表结构
+
+```sql
+-- STAR 事件日志
+CREATE TABLE IF NOT EXISTS task_events (
+    id            TEXT PRIMARY KEY,
+    task_id       TEXT NOT NULL,
+    star_section  TEXT NOT NULL CHECK(star_section IN ('S','T','A','R')),
+    content       TEXT NOT NULL,
+    event_type    TEXT NOT NULL DEFAULT 'note'
+                  CHECK(event_type IN ('note','blocker','pause','resume')),
+    created_at    TEXT NOT NULL,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+
+-- 暂停记录
+CREATE TABLE IF NOT EXISTS task_pauses (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id   TEXT NOT NULL,
+    paused_at TEXT NOT NULL,
+    resumed_at TEXT,          -- NULL = 仍在暂停中
+    reason    TEXT,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+```
+
+> `task_events` 中 `event_type='pause'` 触发同步写 `task_pauses`，
+> `event_type='resume'` 触发更新对应 `task_pauses.resumed_at`。
 
 ---
 
@@ -153,10 +251,12 @@ MVP 核心视图。功能包括：
 
 ### 阶段 0.2（近期规划）
 
+- [ ] STAR 任务定义体系（`task_events` + `task_pauses` 表）
+- [ ] 前端 STAR 面板（可折叠四段式 + 时间线事件展示）
+- [ ] 暂停恢复功能、暂停统计
 - [ ] 前端 UI 重构为多视图路由
 - [ ] 精力面板可视化（甘特图/堆叠图）
 - [ ] 前端迁移到 React/Vue + Tailwind
-- [ ] 添加项目风险视图（基础版）
 
 ### 阶段 1.x（远期规划）
 
