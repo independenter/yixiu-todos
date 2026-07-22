@@ -228,6 +228,16 @@ function bindTaskActions(tl: HTMLElement): void {
     }
   });
 
+  // Navigate to task detail (click on row but not on action buttons)
+  tl.addEventListener('click', (e) => {
+    const row = (e.target as HTMLElement).closest('.task-row') as HTMLElement;
+    if (!row) return;
+    if ((e.target as HTMLElement).closest('.edit-btn, .delete-btn, .complete-cb')) return;
+    e.stopPropagation();
+    const tid = row.dataset.taskId;
+    if (tid) location.hash = `#task/${tid}`;
+  });
+
   // Complete checkbox
   tl.addEventListener('change', async (e) => {
     const cb = (e.target as HTMLElement).closest('.complete-cb') as HTMLInputElement;
@@ -427,7 +437,7 @@ export async function renderPersonal(container: HTMLElement): Promise<void> {
       const borderColor = t.status === 'done' ? '#22c55e' : t.status === 'paused' ? '#f59e0b' : t.status === 'active' ? '#3b82f6' : '#e2e8f0';
       const isDone = t.status === 'done';
       tlHtml += `
-        <div class="task-row" onclick="location.hash='#task/${t.id}'" style="border-left-color:${borderColor}">
+        <div class="task-row" data-task-id="${t.id}" style="border-left-color:${borderColor}">
           <input type="checkbox" ${isDone ? 'checked' : ''} class="complete-cb" data-complete-id="${t.id}" style="margin-right:10px;cursor:pointer" ${isDone ? 'disabled' : ''}>
           <div class="title" style="${isDone ? 'text-decoration:line-through;color:#94a3b8' : ''}">${escHtml(t.title)}</div>
           <div style="display:flex;align-items:center;gap:10px">
