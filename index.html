@@ -225,6 +225,29 @@
             case 'get_star_events': return Promise.resolve(DB.getStarEvents(i.taskId || a.taskId || i.task_id || a.task_id));
             case 'add_star_event': return Promise.resolve(DB.addStarEvent(i));
             case 'get_task_pause_stats': return Promise.resolve(DB.getTaskPauseStats(i.taskId || a.taskId || i.task_id || a.task_id));
+            case 'update_star_event':
+            case 'delete_star_event': return Promise.resolve(null);
+            case 'postpone_task': {
+              const t = DB.listTasks().find(x => x.id === (a.id || i.id));
+              if (t) { t.start_time = a.new_start || i.newStart || i.new_start; t.end_time = a.new_end || i.newEnd || i.new_end; t.updated_at = now(); }
+              return Promise.resolve(null);
+            }
+            case 'assign_task_to_employee':
+            case 'update_employee_progress': return Promise.resolve(null);
+            case 'check_force_rule': return Promise.resolve({ required: false });
+            case 'record_force_response': return Promise.resolve(null);
+            case 'pause_task': {
+              const t = DB.listTasks().find(x => x.id === (a.taskId || a.task_id));
+              if (t) t.status = 'paused';
+              return Promise.resolve(null);
+            }
+            case 'resume_task': {
+              const t = DB.listTasks().find(x => x.id === (a.taskId || a.task_id));
+              if (t) t.status = 'active';
+              return Promise.resolve(null);
+            }
+            case 'schedule_reminder':
+            case 'cancel_reminder': return Promise.resolve(null);
             case 'send_notification': return Promise.resolve(null);
             case 'export_time_report': return Promise.resolve('[]');
             case 'vacuum_db': return Promise.resolve(null);
