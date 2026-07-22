@@ -30,4 +30,6 @@ data/
 
 # 日志
 *.log
+.playwright
+*.png
 .claude/
