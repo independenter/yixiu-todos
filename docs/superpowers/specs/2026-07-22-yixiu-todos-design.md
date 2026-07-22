@@ -54,7 +54,7 @@ MVP 核心视图。功能包括：
 - 给员工分配任务（独立 `employee_tasks` 表）
 - 员工精力占用、平均进度、时间冲突告警计算
 
-### 2.3 项目风险管理视图（TBD — 待开发）
+### 2.3 团队面板（已转移至团队面板重建设计）
 
 > **状态**：列入路线图，尚未实现。架构预留。
 
@@ -189,7 +189,7 @@ MVP 核心视图。功能包括：
 ### 4.2 前端（Vanilla TS，可迁移）
 
 - 当前为 Vanilla TypeScript（Vite 构建）
-- 可零成本迁移到 React/Vue + Tailwind CSS
+- 当前为 Vanilla TS（Vite 构建），暂无迁移计划
 - 前端通过 `@tauri-apps/api/core` 的 `invoke` 调用 Rust 命令
 
 ### 4.3 数据库（SQLite via rusqlite）
@@ -249,14 +249,13 @@ CREATE TABLE IF NOT EXISTS task_pauses (
 - [x] 系统托盘
 - [x] 数据库维护
 
-### 阶段 0.2（近期规划）
+### 阶段 0.2（已完成） ✅
 
-- [ ] STAR 任务定义体系（`task_events` + `task_pauses` 表）
-- [ ] 前端 STAR 面板（可折叠四段式 + 时间线事件展示）
-- [ ] 暂停恢复功能、暂停统计
-- [ ] 前端 UI 重构为多视图路由
-- [ ] 精力面板可视化（甘特图/堆叠图）
-- [ ] 前端迁移到 React/Vue + Tailwind
+- [x] STAR 任务定义体系（`task_events` + `task_pauses` 表）
+- [x] 前端 STAR 面板（可折叠四段式 + 时间线事件展示）
+- [x] 暂停恢复功能、暂停统计
+- [x] 前端 UI 重构为多视图路由
+- [x] 精力面板可视化（甘特图/堆叠图）
 
 ### 阶段 1.x（远期规划）
 
