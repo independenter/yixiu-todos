@@ -63,14 +63,32 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 };
 
-// STAR 面板：记录精力事件（Task 4 实现完整逻辑）
-(window as any).addStarEvent = async (taskId: string, eventType: string, note: string) => {
-  await invoke('record_star_event', { taskId, eventType, note });
-  router.navigate();
+// STAR 面板：添加事件
+(window as any).addStarEvent = async (taskId: string, section: string) => {
+  const input = document.getElementById(`star-input-${section}`) as HTMLInputElement;
+  const typeSelect = document.getElementById(`star-type-${section}`) as HTMLSelectElement;
+  const content = input?.value?.trim();
+  if (!content) return;
+  try {
+    await invoke('add_star_event', {
+      input: { taskId, starSection: section, content, eventType: typeSelect?.value || 'note' }
+    });
+    // If pause event, also update task status
+    if (typeSelect?.value === 'pause') {
+      await invoke('pause_task', { taskId, reason: content });
+    }
+    location.reload();
+  } catch (e) {
+    alert(`添加失败: ${e}`);
+  }
 };
 
-// STAR 面板：恢复暂停的任务（Task 4 实现完整逻辑）
+// STAR 面板：恢复暂停的任务
 (window as any).resumeTask = async (taskId: string) => {
-  await invoke('resume_task', { taskId });
-  router.navigate();
+  try {
+    await invoke('resume_task', { taskId });
+    location.reload();
+  } catch (e) {
+    alert(`恢复失败: ${e}`);
+  }
 };
