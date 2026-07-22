@@ -24,7 +24,7 @@ const EVENT_ICONS: Record<string, string> = {
   note: '○', blocker: '🔴', pause: '⏸️', resume: '▶️',
 };
 
-export async function renderStarPanel(container: HTMLElement, taskId: string, taskStatus: string): Promise<void> {
+export async function renderStarPanel(container: HTMLElement, taskId: string, _taskStatus: string): Promise<void> {
   container.innerHTML = '<h3 style="margin-bottom:12px">📋 STAR 任务定义</h3>';
 
   // Load all events and stats

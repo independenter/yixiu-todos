@@ -77,7 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeSelect?.value === 'pause') {
       await invoke('pause_task', { taskId, reason: content });
     }
-    location.reload();
+    if (location.hash.startsWith('#task/')) {
+      location.reload();
+    }
   } catch (e) {
     alert(`添加失败: ${e}`);
   }
