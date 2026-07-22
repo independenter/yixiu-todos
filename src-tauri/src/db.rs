@@ -136,6 +136,26 @@ fn create_schema(conn: &Connection) -> SqlResult<()> {
         "#,
     )?;
 
+    // ─── 项目表 ──────────────────────────────────────────
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS projects (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            priority    INTEGER NOT NULL DEFAULT 2,
+            status      TEXT NOT NULL DEFAULT 'active',
+            created_at  TEXT NOT NULL,
+            updated_at  TEXT NOT NULL
+        );
+        "#,
+    )?;
+
+    // 为旧 employee_tasks 添加扩展列
+    let _ = conn.execute("ALTER TABLE employee_tasks ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL", []);
+    let _ = conn.execute("ALTER TABLE employee_tasks ADD COLUMN global_priority INTEGER NOT NULL DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE employee_tasks ADD COLUMN project_priority INTEGER NOT NULL DEFAULT 0", []);
+
     // ─── STAR 任务事件表 ────────────────────────────────────
     conn.execute_batch(
         r#"

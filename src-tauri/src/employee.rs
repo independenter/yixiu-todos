@@ -35,6 +35,7 @@ pub struct EmpTaskInput {
     pub start_time: String,
     pub end_time: String,
     pub effort_percent: Option<i64>,
+    pub project_id: Option<String>,  // NEW
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -48,6 +49,8 @@ pub struct EmpTaskRow {
     pub effort_percent: i64,
     pub progress: i64,
     pub status: String,
+    pub project_id: Option<String>,    // NEW
+    pub global_priority: i64,          // NEW
 }
 
 #[derive(Debug, Serialize)]
@@ -110,11 +113,12 @@ pub fn assign_task_to_employee(
     let now = Utc::now().to_rfc3339();
     conn.execute(
         r#"INSERT INTO employee_tasks
-           (id,employee_id,title,description,priority,start_time,end_time,effort_percent,progress,status,created_at,updated_at)
-           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,0,'pending',?9,?10)"#,
+           (id,employee_id,title,description,priority,start_time,end_time,effort_percent,project_id,progress,status,created_at,updated_at)
+           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,0,'pending',?10,?11)"#,
         params![id, input.employee_id, input.title, input.description.unwrap_or_default(),
                 input.priority.unwrap_or(2), input.start_time, input.end_time,
-                input.effort_percent.unwrap_or(100), now, now],
+                input.effort_percent.unwrap_or(100), input.project_id.unwrap_or_default(),
+                now, now],
     ).map_err(|e| e.to_string())?;
     Ok(id)
 }
@@ -133,13 +137,14 @@ pub fn get_employee_workload(
 
     // 活跃任务
     let mut s = conn.prepare(
-        "SELECT id,employee_id,title,priority,start_time,end_time,effort_percent,progress,status
+        "SELECT id,employee_id,title,priority,start_time,end_time,effort_percent,progress,status,project_id,global_priority
          FROM employee_tasks WHERE employee_id=?1 AND status IN ('pending','active')"
     ).map_err(|e| e.to_string())?;
     let rows: Vec<EmpTaskRow> = s.query_map(params![employee_id], |r| Ok(EmpTaskRow {
         id: r.get(0)?, employee_id: r.get(1)?, title: r.get(2)?,
         priority: r.get(3)?, start_time: r.get(4)?, end_time: r.get(5)?,
         effort_percent: r.get(6)?, progress: r.get(7)?, status: r.get(8)?,
+        project_id: r.get(9)?, global_priority: r.get(10)?,
     })).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
 
     let mut total = 0i64;
