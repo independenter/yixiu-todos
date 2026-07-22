@@ -7,10 +7,9 @@
 //       单任务重叠 1 次（即 50%×2 = 100%）→ "warning" 黄色
 //   • 重叠任务时间区间交集 > 0 即视为冲突
 
-use std::sync::Mutex;
 use rusqlite::{params, Connection};
 use crate::db::DbState;
-use crate::task::{ConflictItem, TaskRow};
+use crate::task::ConflictItem;
 
 /// 重新计算所有冲突并写回 task_overlaps 表
 /// 由 task 的 create/update/delete/complete/postpone 调用
@@ -75,6 +74,7 @@ pub fn recompute_with_conn(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 /// 给前端用：返回冲突列表（已被 task.rs 的 get_conflict_report 包装）
+#[allow(dead_code)]
 pub fn list(conn: &Connection) -> rusqlite::Result<Vec<ConflictItem>> {
     let mut s = conn.prepare(
         "SELECT task_a_id,task_b_id,overlap_minutes,severity,
@@ -99,6 +99,7 @@ fn parse(s: &str) -> chrono::DateTime<chrono::Utc> {
 }
 
 /// 实时检查单条新任务是否会冲突（用于前端"保存前预览"）
+#[allow(dead_code)]
 pub fn check_one_against_existing(
     conn: &Connection,
     new_start: &str,

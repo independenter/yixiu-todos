@@ -63,6 +63,7 @@ pub fn build_tray(app: &AppHandle) -> anyhow::Result<()> {
 }
 
 /// 更新托盘 tooltip（调度器/冲突检测可调用）
+#[allow(dead_code)]
 pub fn set_tooltip(app: &AppHandle, text: &str) {
     if let Some(tray) = app.tray_by_id("main-tray") {
         let _ = tray.set_tooltip(Some(text));

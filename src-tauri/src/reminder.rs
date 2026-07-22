@@ -12,7 +12,7 @@ use crate::AppState;
 /// 立即发送一条桌面通知
 #[tauri::command]
 pub async fn send_notification(
-    app: AppHandle,
+    _app: AppHandle,
     title: String,
     body: String,
     urgency: Option<String>, // "low" | "normal" | "critical"
@@ -103,12 +103,11 @@ async fn send_notification_impl(
 
 /// 启动一个一次性提醒（scheduler 内部用）
 pub async fn schedule_in(
-    app: &Arc<AppHandle>,
+    _app: &Arc<AppHandle>,
     task_id: &str,
     seconds: u64,
     body: &str,
 ) {
-    let app = app.clone();
     let task_id = task_id.to_string();
     let body = body.to_string();
     let title = "⏰ 一修Todo 提醒".to_string();

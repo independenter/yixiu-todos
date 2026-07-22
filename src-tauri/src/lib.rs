@@ -20,7 +20,6 @@ use tokio::sync::Mutex as AsyncMutex;
 use parking_lot::Mutex as PlMutex;
 
 use tauri::Manager;
-use db::DbState;
 
 // ─── 启动 ─────────────────────────────────────────────────
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

@@ -1,11 +1,10 @@
 // task.rs — 个人任务 CRUD + 精力占用面板 + 冲突检测入口
 
-use std::sync::Mutex;
 use tauri::State;
-use rusqlite::{params, Connection};
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc, Duration as ChronoDuration, ParseError};
-use anyhow::{Context, Result};
+use chrono::{DateTime, Utc, ParseError};
+use anyhow::Result;
 use crate::db::DbState;
 use crate::conflict;
 
@@ -222,8 +221,8 @@ pub fn postpone_task(
 #[tauri::command]
 pub fn get_workload_panel(
     state: State<'_, DbState>,
-    from: Option<String>,
-    to: Option<String>,
+    _from: Option<String>,
+    _to: Option<String>,
 ) -> Result<Vec<WorkloadPoint>, String> {
     let conn = state.personal.lock().unwrap();
     let rows: Vec<(String, String, i64)> = {
@@ -252,7 +251,7 @@ pub fn get_workload_panel(
         let t0 = win[0];
         let t1 = win[1];
         let mut total = 0i64;
-        let mut ids: Vec<String> = Vec::new();
+        let ids: Vec<String> = Vec::new();
         for (s, e, ef) in &rows {
             let ss = parse_time(s).map_err(|e| e.to_string())?;
             let ee = parse_time(e).map_err(|e| e.to_string())?;

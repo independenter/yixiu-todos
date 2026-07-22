@@ -8,7 +8,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Manager, State};
-use tokio::sync::Mutex as AsyncMutex;
 use crate::db::DbState;
 use crate::task;
 use crate::reminder;

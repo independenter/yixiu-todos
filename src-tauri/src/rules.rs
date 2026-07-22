@@ -4,9 +4,8 @@
 // 若用户未事先录入关联任务，则每隔 N 分钟弹一次提醒/阻断。
 // 这是个人精力纪律工具，不是 DRM。
 
-use std::sync::Mutex;
 use tauri::State;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, OptionalExtension};
 use serde::{Serialize, Deserialize};
 use crate::db::DbState;
 use chrono::Utc;

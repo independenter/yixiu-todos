@@ -4,6 +4,7 @@
 
 use thiserror::Error;
 
+#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("数据库错误：{0}")]
@@ -30,4 +31,5 @@ impl serde::Serialize for AppError {
     }
 }
 
+#[allow(dead_code)]
 pub type Result<T> = std::result::Result<T, AppError>;

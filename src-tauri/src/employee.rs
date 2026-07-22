@@ -3,9 +3,8 @@
 // 员工有自己独立的任务表 employee_tasks，结构与个人任务类似，
 // 但多了 employee_id 与 progress（0-100）字段。
 
-use std::sync::Mutex;
 use tauri::State;
-use rusqlite::{params, Connection};
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use chrono::Utc;
 use crate::db::DbState;
