@@ -1,7 +1,7 @@
 // task_star.rs — STAR 任务定义事件管理
 //
 // 每个任务按 S/Situation / T/Task / A/Action / R/Result 分解，
-// 每段可记录多条事件（note/blocker/pause/resume）。
+// 每段可记录多条事件。
 
 use tauri::State;
 use rusqlite::params;
@@ -16,7 +16,7 @@ pub struct StarEventInput {
     pub task_id: String,
     pub star_section: String,  // 'S' | 'T' | 'A' | 'R'
     pub content: String,
-    pub event_type: Option<String>,  // 'note' | 'blocker' | 'pause' | 'resume'
+    pub event_type: Option<String>,  // note/research/design/coding/test/review/doc/meeting/blocker/change/decision/pause/resume
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -67,8 +67,8 @@ pub fn add_star_event(
     let event_type = input.event_type.unwrap_or_else(|| "note".into());
 
     // Validate event_type
-    if !["note", "blocker", "pause", "resume"].contains(&event_type.as_str()) {
-        return Err("event_type 必须是 note/blocker/pause/resume".into());
+    if !["note","research","design","coding","test","review","doc","meeting","blocker","change","decision","pause","resume"].contains(&event_type.as_str()) {
+        return Err("event_type 无效".into());
     }
 
     conn.execute(
@@ -153,8 +153,8 @@ pub fn update_star_event(
         ).map_err(|e| e.to_string())?;
     }
     if let Some(event_type) = &input.event_type {
-        if !["note", "blocker", "pause", "resume"].contains(&event_type.as_str()) {
-            return Err("event_type 必须是 note/blocker/pause/resume".into());
+        if !["note","research","design","coding","test","review","doc","meeting","blocker","change","decision","pause","resume"].contains(&event_type.as_str()) {
+            return Err("event_type 无效".into());
         }
         conn.execute(
             "UPDATE task_events SET event_type = ?1 WHERE id = ?2",

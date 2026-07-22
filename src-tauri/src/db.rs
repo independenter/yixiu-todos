@@ -141,8 +141,7 @@ fn create_schema(conn: &Connection) -> SqlResult<()> {
             task_id       TEXT NOT NULL,
             star_section  TEXT NOT NULL CHECK(star_section IN ('S','T','A','R')),
             content       TEXT NOT NULL,
-            event_type    TEXT NOT NULL DEFAULT 'note'
-                          CHECK(event_type IN ('note','blocker','pause','resume')),
+            event_type    TEXT NOT NULL DEFAULT 'note',
             created_at    TEXT NOT NULL,
             FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
         );

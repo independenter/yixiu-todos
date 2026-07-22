@@ -21,7 +21,10 @@ const SECTION_LABELS: Record<string, { en: string; zh: string; question: string 
 };
 
 const EVENT_ICONS: Record<string, string> = {
-  note: '○', blocker: '🔴', pause: '⏸️', resume: '▶️',
+  note: '○', research: '🔍', design: '🎨', coding: '💻',
+  test: '🧪', review: '👀', doc: '📄', meeting: '🤝',
+  blocker: '🔴', change: '🔄', decision: '✅',
+  pause: '⏸️', resume: '▶️',
 };
 
 export async function renderStarPanel(container: HTMLElement, taskId: string, _taskStatus: string): Promise<void> {
@@ -76,8 +79,17 @@ export async function renderStarPanel(container: HTMLElement, taskId: string, _t
           <div class="inline-form">
             <input id="star-input-${section}" placeholder="添加${label.zh}事件...">
             <select id="star-type-${section}">
-              <option value="note">普通</option>
-              <option value="blocker">🔴 阻碍</option>
+              <option value="note">📝 普通</option>
+              <option value="research">🔍 调研</option>
+              <option value="design">🎨 设计</option>
+              <option value="coding">💻 编码</option>
+              <option value="test">🧪 测试</option>
+              <option value="review">👀 审查</option>
+              <option value="doc">📄 文档</option>
+              <option value="meeting">🤝 会议</option>
+              <option value="blocker">🔴 阻塞</option>
+              <option value="change">🔄 变更</option>
+              <option value="decision">✅ 决策</option>
               <option value="pause" ${section !== 'A' ? 'disabled' : ''}>⏸️ 暂停</option>
             </select>
             <button onclick="addStarEvent('${taskId}','${section}')">+</button>

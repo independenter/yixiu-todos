@@ -312,7 +312,7 @@ let archiveSortMode = 'created_at';
 };
 
 // ─── 时间范围选择 ──────────────────────────────
-let workloadRange = 'week'; // '3day' | 'week' | 'month' | 'quarter' | 'all'
+let workloadRange = '3day'; // '3day' | 'week' | 'month' | 'quarter' | 'all'
 
 function timeRangeLabel(r: string): string {
   return { '3day': '近3天', 'week': '本周', 'month': '本月', 'quarter': '本季度', 'all': '全部' }[r] || r;
