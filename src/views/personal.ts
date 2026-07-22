@@ -50,12 +50,12 @@ function getFormHtml(): string {
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
         <span style="font-size:13px;color:#64748b">开始</span>
-        <input id="tf-start-date" type="date" style="flex:1;min-width:130px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
-        <input id="tf-start-time" type="time" step="60" value="09:00" style="width:110px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
+        <input id="tf-start-date" placeholder="2026-07-22" style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
+        <input id="tf-start-time" placeholder="09:00" value="" style="width:90px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
         <span style="color:#94a3b8">→</span>
         <span style="font-size:13px;color:#64748b">结束</span>
-        <input id="tf-end-date" type="date" style="flex:1;min-width:130px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
-        <input id="tf-end-time" type="time" step="60" value="10:00" style="width:110px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
+        <input id="tf-end-date" placeholder="2026-07-22" style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
+        <input id="tf-end-time" placeholder="10:00" value="" style="width:90px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
       </div>
       <div style="display:flex;gap:8px">
         <button id="tf-save" style="padding:7px 14px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500">保存</button>
