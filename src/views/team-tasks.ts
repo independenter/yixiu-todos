@@ -71,7 +71,7 @@ export async function renderProjectTasks(container: HTMLElement, projectId: stri
         <h3>📋 分配新任务</h3>
         <div class="inline-form">
           <input id="at-title-${projectId}" placeholder="任务标题" style="flex:2">
-          <input id="at-employee-${projectId}" placeholder="员工ID（输入人员ID）" style="flex:1">
+          <select id="at-employee-${projectId}" style="flex:1;padding:7px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff"><option value="">选择员工...</option></select>
         </div>
         <div class="inline-form">
           <input id="at-effort-${projectId}" type="number" placeholder="精力%" value="50" style="width:80px">

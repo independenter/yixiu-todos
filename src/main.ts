@@ -259,23 +259,52 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 };
 
-(window as any).showAssignForm = (projectId: string) => {
+(window as any).showAssignForm = async (projectId: string) => {
   const form = document.getElementById(`assign-form-${projectId}`);
-  if (form) form.style.display = form.style.display === 'none' ? '' : 'none';
+  if (!form) return;
+  const showing = form.style.display !== 'none';
+  form.style.display = showing ? 'none' : '';
+  if (!showing) {
+    const sel = document.getElementById(`at-employee-${projectId}`) as HTMLSelectElement;
+    if (sel) {
+      try {
+        const emps = await invoke<any[]>('list_employees');
+        sel.innerHTML = '<option value="">选择员工...</option>' +
+          emps.map((e: any) => `<option value="${e.id}">${e.name} (${e.role || ''})</option>`).join('');
+      } catch {}
+    }
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const sd = document.getElementById(`at-start-date-${projectId}`) as HTMLInputElement;
+    const st = document.getElementById(`at-start-time-${projectId}`) as HTMLInputElement;
+    const ed = document.getElementById(`at-end-date-${projectId}`) as HTMLInputElement;
+    const et = document.getElementById(`at-end-time-${projectId}`) as HTMLInputElement;
+    if (sd) sd.value = now.toISOString().slice(0, 10);
+    if (st) st.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const soon = new Date(now.getTime() + 3600000);
+    if (ed) ed.value = soon.toISOString().slice(0, 10);
+    if (et) et.value = `${pad(soon.getHours())}:${pad(soon.getMinutes())}`;
+  }
 };
 
 (window as any).confirmAssign = async (projectId: string) => {
   const title = (document.getElementById(`at-title-${projectId}`) as HTMLInputElement)?.value?.trim();
-  const employeeId = (document.getElementById(`at-employee-${projectId}`) as HTMLInputElement)?.value?.trim();
+  const empSelect = document.getElementById(`at-employee-${projectId}`) as HTMLSelectElement;
+  const employeeId = empSelect?.value;
   const effort = Number((document.getElementById(`at-effort-${projectId}`) as HTMLInputElement)?.value || 50);
-  const start = (document.getElementById(`at-start-${projectId}`) as HTMLInputElement)?.value;
-  const end = (document.getElementById(`at-end-${projectId}`) as HTMLInputElement)?.value;
+  const sd = (document.getElementById(`at-start-date-${projectId}`) as HTMLInputElement)?.value;
+  const st = (document.getElementById(`at-start-time-${projectId}`) as HTMLInputElement)?.value;
+  const ed = (document.getElementById(`at-end-date-${projectId}`) as HTMLInputElement)?.value;
+  const et = (document.getElementById(`at-end-time-${projectId}`) as HTMLInputElement)?.value;
   if (!title) return alert('请输入任务标题');
-  if (!employeeId) return alert('请输入员工ID');
-  if (!start || !end) return alert('请选择起止时间');
+  if (!employeeId) return alert('请选择员工');
+  if (!sd || !st || !ed || !et) return alert('请填写完整的起止时间');
+  const start_time = new Date(`${sd}T${st}`).toISOString();
+  const end_time = new Date(`${ed}T${et}`).toISOString();
+  if (isNaN(Date.parse(start_time)) || isNaN(Date.parse(end_time))) return alert('时间格式不正确');
   try {
     await invoke('assign_task_to_employee', {
-      input: { employeeId, title, effortPercent: effort, startTime: new Date(start).toISOString(), endTime: new Date(end).toISOString(), projectId }
+      input: { employeeId, title, effortPercent: effort, startTime: start_time, endTime: end_time, projectId }
     });
     const container = getCurrentContainer();
     if (container) await renderTeam(container);
