@@ -14,6 +14,7 @@ mod employee;
 mod rules;
 mod task_star;
 mod error;
+mod api;
 
 // ─── 用到的类型 ─────────────────────────────────────────────
 use std::sync::Arc;
@@ -40,6 +41,12 @@ pub fn run() {
 
             // 构建系统托盘
             let _ = tray::build_tray(app.handle());
+
+            // 启动 HTTP API 服务（供浏览器开发模式使用）
+            let db_path = db::db_path(app.handle()).ok();
+            if let Some(path) = db_path {
+                api::start(3456, path);
+            }
 
             // 启动后台调度器（定时扫描 + 提醒）
             let handle = app.handle().clone();

@@ -134,75 +134,99 @@
       }
     </style>
     <script>
-    // 浏览器模式：简单 Mock Tauri API（仅用于 UI 预览，数据不持久）
-    // 真实数据由 Tauri 后端 SQLite 管理
+    // 浏览器模式：优先连接 HTTP API (Tauri dev 时提供)，不可用则用内存 Mock
     if (!window.__TAURI_INTERNALS__) {
+      const API = 'http://localhost:3456';
+      let useMock = false; // 先试 HTTP API
+
+      // HTTP API 代理
+      const api = (method, path, body) =>
+        fetch(API + path, { method, headers: {'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined })
+          .then(r => { if (!r.ok && useMock === false) { useMock = true; throw new Error('API unavailable'); } return r.json(); });
+
+      // 内存 Mock（HTTP API 不可用时回退）
       const toSnake = (o) => {
         if (!o || typeof o !== 'object') return o;
         if (Array.isArray(o)) return o.map(toSnake);
         const r = {};
-        for (const [k, v] of Object.entries(o)) {
-          r[k.replace(/[A-Z]/g, m => '_' + m.toLowerCase())] = (v && typeof v === 'object' && !(v instanceof Date)) ? toSnake(v) : v;
-        }
+        for (const [k, v] of Object.entries(o)) r[k.replace(/[A-Z]/g, m => '_' + m.toLowerCase())] = (v && typeof v === 'object' && !(v instanceof Date)) ? toSnake(v) : v;
         return r;
       };
 
-      const DB = (() => {
-        let tasks = [], employees = [], forceRules = [], taskEvents = [], empTasks = [];
-        let nextId = 1;
-        const uid = () => 'id-' + String(nextId++).padStart(3, '0');
-        const now = () => new Date().toISOString();
+      const mockDb = (() => {
+        let tasks=[], employees=[], forceRules=[], taskEvents=[], empTasks=[], nextId=1;
+        const uid=()=>'id-'+String(nextId++).padStart(3,'0'), now=()=>new Date().toISOString();
         return {
-          createTask(input) { const t = { ...toSnake(input), id: uid(), status: 'pending', created_at: now(), updated_at: now() }; tasks.push(t); return t.id; },
-          listTasks() { return [...tasks]; },
-          updateTask(id, patch) { const t = tasks.find(x => x.id === id); if (t) Object.assign(t, toSnake(patch), { updated_at: now() }); },
-          deleteTask(id) { tasks = tasks.filter(x => x.id !== id); },
-          completeTask(id) { const t = tasks.find(x => x.id === id); if (t) { t.status = 'done'; t.updated_at = now(); } },
-          createEmployee(input) { const e = { ...toSnake(input), id: uid(), status: 'active', created_at: now() }; employees.push(e); return e.id; },
-          listEmployees() { return [...employees]; },
-          listForceRules() { return [...forceRules]; },
-          setForceRule(input) {
-            const n = toSnake(input); const ex = forceRules.find(r => r.app_name === n.app_name);
-            if (ex) { ex.remind_interval_sec = n.remind_interval_sec; return ex.id; }
-            const r = { id: forceRules.length + 1, ...n, enabled: true, created_at: now() }; forceRules.push(r); return r.id;
-          },
-          clearForceRule(appName) { forceRules = forceRules.filter(r => r.app_name !== appName); },
-          getStarEvents(taskId) { return taskEvents.filter(e => e.task_id === taskId); },
-          addStarEvent(input) { const ev = { ...toSnake(input), id: uid(), created_at: now() }; taskEvents.push(ev); return ev.id; },
-          getTaskPauseStats() { return { pause_count: 0, total_pause_seconds: 0, is_paused_now: false, current_pause_reason: null, current_pause_since: null }; },
-          getWorkload() { return tasks.filter(t => t.status === 'pending' || t.status === 'active').map(t => ({ time: t.start_time || now(), total_percent: t.effort_percent || 50, level: 'ok', task_ids: [t.id] })); },
-          getEmployeeWorkload(empId) { return { employee_id: empId, name: employees.find(e => e.id === empId)?.name || '', total_percent: 0, active_tasks: 0, avg_progress: 0, alerts: [] }; },
-          assignTask(input) { empTasks.push({ ...toSnake(input), id: uid(), progress: 0, status: 'pending', created_at: now(), updated_at: now() }); },
+          async invoke(cmd, a) {
+            const args = a || {};
+            const i = toSnake(args.input || args);
+            switch (cmd) {
+              case 'list_tasks': return [...tasks];
+              case 'create_task': { const t={...i,id:uid(),status:'pending',created_at:now(),updated_at:now()}; tasks.push(t); return t.id; }
+              case 'update_task': { const t=tasks.find(x=>x.id===(a.id||i.id)); if(t)Object.assign(t,i,{updated_at:now()}); return null; }
+              case 'delete_task': { tasks=tasks.filter(x=>x.id!==(a.id||i.id)); return null; }
+              case 'complete_task': { const t=tasks.find(x=>x.id===(a.id||i.id)); if(t)t.status='done'; return null; }
+              case 'get_workload_panel': return tasks.filter(t=>t.status==='pending'||t.status==='active').map(t=>({time:t.start_time||now(),total_percent:t.effort_percent||50,level:'ok',task_ids:[t.id]}));
+              case 'get_conflict_report': return [];
+              case 'list_employees': return [...employees];
+              case 'create_employee': { const e={...i,id:uid(),status:'active',created_at:now()}; employees.push(e); return e.id; }
+              case 'get_employee_workload': return {employee_id:i.employee_id||a.employeeId,name:'',total_percent:0,active_tasks:0,avg_progress:0,alerts:[]};
+              case 'list_force_rules': return [...forceRules];
+              case 'set_force_rule': { const n=i; const ex=forceRules.find(r=>r.app_name===n.app_name); if(ex){Object.assign(ex,n);return ex.id;} const r={id:forceRules.length+1,...n,enabled:true,created_at:now()}; forceRules.push(r); return r.id; }
+              case 'clear_force_rule': { forceRules=forceRules.filter(r=>r.app_name!==(i.app_name||a.appName)); return null; }
+              case 'get_star_events': return taskEvents.filter(e=>e.task_id===(i.task_id||a.taskId));
+              case 'add_star_event': { const ev={...i,id:uid(),created_at:now()}; taskEvents.push(ev); return ev.id; }
+              case 'get_task_pause_stats': return {pause_count:0,total_pause_seconds:0,is_paused_now:false};
+              case 'pause_task':{const t=tasks.find(x=>x.id===(i.task_id||a.taskId));if(t)t.status='paused';return null;}
+              case 'resume_task':{const t=tasks.find(x=>x.id===(i.task_id||a.taskId));if(t)t.status='active';return null;}
+              case 'assign_task_to_employee': { empTasks.push({...i,id:uid(),progress:0,status:'pending',created_at:now(),updated_at:now()}); return null; }
+              default: return null;
+            }
+          }
         };
       })();
 
       window.__TAURI_INTERNALS__ = { invoke: (cmd, args) => {
-        const a = args || {};
-        const i = a.input ? toSnake(a.input) : toSnake(a);
-        switch (cmd) {
-          case 'list_tasks': return Promise.resolve(DB.listTasks());
-          case 'create_task': return Promise.resolve(DB.createTask(i));
-          case 'update_task': return Promise.resolve(DB.updateTask(a.id || i.id, i));
-          case 'delete_task': return Promise.resolve(DB.deleteTask(a.id || i.id));
-          case 'complete_task': return Promise.resolve(DB.completeTask(a.id || i.id));
-          case 'get_workload_panel': return Promise.resolve(DB.getWorkload());
-          case 'get_conflict_report': return Promise.resolve([]);
-          case 'list_employees': return Promise.resolve(DB.listEmployees());
-          case 'create_employee': return Promise.resolve(DB.createEmployee(i));
-          case 'get_employee_workload': return Promise.resolve(DB.getEmployeeWorkload(i.employee_id || a.employeeId));
-          case 'list_force_rules': return Promise.resolve(DB.listForceRules());
-          case 'set_force_rule': return Promise.resolve(DB.setForceRule(i));
-          case 'clear_force_rule': return Promise.resolve(DB.clearForceRule(i.app_name || a.appName));
-          case 'get_star_events': return Promise.resolve(DB.getStarEvents(i.task_id || a.taskId));
-          case 'add_star_event': return Promise.resolve(DB.addStarEvent(i));
-          case 'get_task_pause_stats': return Promise.resolve(DB.getTaskPauseStats());
-          case 'pause_task': { const t = DB.listTasks().find(x => x.id === (i.task_id || a.taskId)); if (t) t.status = 'paused'; return Promise.resolve(null); }
-          case 'resume_task': { const t = DB.listTasks().find(x => x.id === (i.task_id || a.taskId)); if (t) t.status = 'active'; return Promise.resolve(null); }
-          case 'assign_task_to_employee': return Promise.resolve(DB.assignTask(i));
-          default: return Promise.resolve(null);
+        // 先尝试 HTTP API
+        if (!useMock) {
+          const apiMap = {
+            list_tasks: ['GET','/api/tasks'], create_task: ['POST','/api/tasks'],
+            update_task: ['PUT','/api/tasks/'+(args?.id||'')], delete_task: ['DELETE','/api/tasks/'+(args?.id||'')],
+            complete_task: ['PUT','/api/tasks/'+(args?.id||'')+'/complete'],
+            get_workload_panel: ['GET','/api/workload'], get_conflict_report: ['GET','/api/conflicts'],
+            list_employees: ['GET','/api/employees'], create_employee: ['POST','/api/employees'],
+            get_employee_workload: ['GET','/api/employees/'+(args?.employeeId||'')+'/workload'],
+            list_force_rules: ['GET','/api/force-rules'], set_force_rule: ['POST','/api/force-rules'],
+            clear_force_rule: ['DELETE','/api/force-rules/'+(args?.appName||'')],
+            get_star_events: ['GET','/api/star/'+(args?.taskId||'')],
+            get_task_pause_stats: ['GET','/api/tasks/'+(args?.taskId||'')+'/pause-stats'],
+          };
+          const ep = apiMap[cmd];
+          if (ep) {
+            const [method, path] = ep;
+            let body = undefined;
+            if (cmd === 'create_task') body = args?.input || args;
+            if (cmd === 'update_task') body = args?.patch || args;
+            if (cmd === 'set_force_rule') body = args?.input || args;
+            if (cmd === 'create_employee') body = args?.input || args;
+            // 转换 camelCase → snake_case 用于 HTTP API
+            const toSnakeApi = (o) => {
+              if (!o||typeof o!=='object') return o;
+              const r={}; for(const[k,v]of Object.entries(o)) r[k.replace(/[A-Z]/g,m=>'_'+m.toLowerCase())]=v;
+              return r;
+            };
+            return fetch(API + path, {
+              method, headers: {'Content-Type':'application/json'},
+              body: body ? JSON.stringify(toSnakeApi(body)) : undefined
+            }).then(r => { if (!r.ok) throw new Error('API error'); return r.json(); }).catch(() => {
+              useMock = true;
+              return mockDb.invoke(cmd, args);
+            });
+          }
         }
+        return mockDb.invoke(cmd, args);
       }};
-      console.log('🖥️ 浏览器模式 - Mock Tauri API ✓（数据在内存中，刷新即失）');
+      console.log('🖥️ 浏览器模式 - 优先 HTTP API，不可用时自动降级 Mock');
     }
     </script>
   </head>
