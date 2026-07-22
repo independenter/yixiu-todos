@@ -395,25 +395,35 @@ export async function renderPersonal(container: HTMLElement): Promise<void> {
       const maxPercent = Math.max(...workload.map(p => p.total_percent), 100);
       // 时间轴：在单条色带上连续显示各时间段
       let tlBars = wlHead + '<div style="display:flex;height:36px;border-radius:6px;overflow:hidden;margin-top:8px">';
-      for (const p of workload) {
+      workload.forEach((p, i) => {
         const pct = Math.round((p.total_percent / maxPercent) * 100);
         const color = p.level === 'error' ? '#ef4444' : p.level === 'warning' ? '#f59e0b' : '#22c55e';
-        tlBars += `<div style="flex:${pct};background:${color};min-width:4px;position:relative" title="${p.time.slice(11,16)} ${p.total_percent}%"></div>`;
-      }
+        const dur = i < workload.length - 1 ? Math.round((new Date(workload[i+1].time).getTime() - new Date(p.time).getTime()) / 60000) + 'min' : '';
+        tlBars += `<div style="flex:${pct};background:${color};min-width:4px" title="${p.time.slice(11,16)} ${p.total_percent}% ${dur}"></div>`;
+      });
       tlBars += '</div><div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-top:4px">';
       tlBars += `<span>${workload[0]?.time.slice(11,16) || ''}</span>`;
       tlBars += `<span>${workload[workload.length-1]?.time.slice(11,16) || ''}</span>`;
       tlBars += '</div>';
 
-      // 详细柱状图
+      // 详细柱状图（含时长）
       tlBars += '<div style="margin-top:12px">';
-      for (const p of workload) {
+      for (let i = 0; i < workload.length; i++) {
+        const p = workload[i];
         const color = p.level === 'error' ? '#ef4444' : p.level === 'warning' ? '#f59e0b' : '#22c55e';
         const barWidth = Math.round((p.total_percent / maxPercent) * 100);
+        // 计算持续时间：当前点到下一个点的时间差
+        let dur = '';
+        if (i < workload.length - 1) {
+          const mins = Math.round((new Date(workload[i+1].time).getTime() - new Date(p.time).getTime()) / 60000);
+          if (mins >= 60) dur = Math.floor(mins/60) + 'h' + (mins%60 ? mins%60 + 'min' : '');
+          else dur = mins + 'min';
+        }
+        const warn = p.total_percent >= 100 ? `<span style="color:#ef4444;font-weight:700;margin-left:6px">⚠️ 过载</span>` : '';
         tlBars += `
           <div style="margin-bottom:5px">
             <div style="display:flex;justify-content:space-between;font-size:11px;color:#64748b">
-              <span>${p.time.slice(11, 16)}</span>
+              <span>${p.time.slice(11, 16)} <span style="color:#94a3b8">${dur}</span>${warn}</span>
               <span style="color:${color};font-weight:600">${p.total_percent}%</span>
             </div>
             <div class="bar-bg">
