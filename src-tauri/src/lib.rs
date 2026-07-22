@@ -12,6 +12,7 @@ mod reminder;
 mod tray;
 mod employee;
 mod rules;
+mod task_star;
 mod error;
 
 // ─── 用到的类型 ─────────────────────────────────────────────
@@ -81,6 +82,15 @@ pub fn run() {
             reminder::send_notification,
             reminder::schedule_reminder,
             reminder::cancel_reminder,
+
+            // STAR 任务事件
+            task_star::add_star_event,
+            task_star::get_star_events,
+            task_star::update_star_event,
+            task_star::delete_star_event,
+            task_star::pause_task,
+            task_star::resume_task,
+            task_star::get_task_pause_stats,
 
             // 数据库维护
             task::vacuum_db,

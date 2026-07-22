@@ -227,7 +227,7 @@ pub fn get_workload_panel(
     let conn = state.personal.lock().unwrap();
     let rows: Vec<(String, String, i64)> = {
         let mut s = conn
-            .prepare("SELECT start_time, end_time, effort_percent FROM tasks WHERE status='pending' OR status='active'")            .map_err(|e| e.to_string())?;
+            .prepare("SELECT start_time, end_time, effort_percent FROM tasks WHERE status IN ('pending','active')")            .map_err(|e| e.to_string())?;
         let mut out = Vec::new();
         let iter = s.query_map([], |r| Ok((r.get::<_,String>(0)?, r.get::<_,String>(1)?, r.get::<_,i64>(2)?)))
             .map_err(|e| e.to_string())?;
