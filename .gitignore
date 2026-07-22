@@ -31,5 +31,7 @@ data/
 # 日志
 *.log
 .playwright
+.playwright-cli
+*.yaml
 *.png
 .claude/
