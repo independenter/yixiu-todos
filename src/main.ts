@@ -94,6 +94,22 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 };
 
+// 切换任务状态
+(window as any).changeTaskStatus = async (taskId: string, status: string) => {
+  try {
+    // Use existing commands for status transitions
+    if (status === 'done') {
+      await invoke('complete_task', { id: taskId });
+    } else if (status === 'paused') {
+      await invoke('pause_task', { taskId, reason: '手动暂停' });
+    } else if (status === 'active') {
+      await invoke('resume_task', { taskId });
+    }
+    await invoke('add_star_event', { input: { taskId, starSection: 'A', content: '状态变更为: ' + status, eventType: 'change' } });
+    location.reload();
+  } catch (e) { alert('状态切换失败: ' + e); }
+};
+
 // STAR 面板：恢复暂停的任务
 (window as any).resumeTask = async (taskId: string) => {
   try {

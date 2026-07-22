@@ -34,9 +34,14 @@ export async function renderTaskDetail(container: HTMLElement, taskId: string): 
             <h2 style="font-size:18px;font-weight:700">${task.title}</h2>
             <p style="color:#64748b;margin-top:4px;font-size:14px">${task.description || '暂无描述'}</p>
           </div>
-          <div style="display:flex;align-items:center">
-            <span class="badge ${STATUS_BADGE[task.status] || 'badge-pending'}">${STATUS_LABEL[task.status] || task.status}</span>
-            ${task.status === 'done' ? `<button onclick="reactivateTask('${task.id}')" style="margin-left:8px;padding:4px 10px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;cursor:pointer;font-size:13px">🔄 重新激活</button>` : ''}
+          <div style="display:flex;align-items:center;gap:6px">
+            <select onchange="changeTaskStatus('${task.id}', this.value)" style="padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;background:#fff">
+              <option value="pending" ${task.status === 'pending' ? 'selected' : ''}>📋 待处理</option>
+              <option value="active" ${task.status === 'active' ? 'selected' : ''}>⚡ 进行中</option>
+              <option value="paused" ${task.status === 'paused' ? 'selected' : ''}>⏸️ 已暂停</option>
+              <option value="done" ${task.status === 'done' ? 'selected' : ''}>✅ 已完成</option>
+            </select>
+            ${task.status === 'done' ? `<button onclick="reactivateTask('${task.id}')" style="padding:4px 10px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;cursor:pointer;font-size:13px">🔄 重新激活</button>` : ''}
           </div>
         </div>
         <div style="display:flex;gap:16px;margin-top:10px;font-size:13px;color:#64748b">
