@@ -8,6 +8,7 @@ import { Router, Route } from './router';
 import { renderPersonal } from './views/personal';
 import { renderTeam } from './views/team';
 import { renderTaskDetail } from './views/task-detail';
+import { renderSettings } from './views/settings';
 
 const router = new Router(async (container: HTMLElement, route: Route) => {
   switch (route.name) {
@@ -16,6 +17,9 @@ const router = new Router(async (container: HTMLElement, route: Route) => {
       break;
     case 'team':
       await renderTeam(container);
+      break;
+    case 'settings':
+      await renderSettings(container);
       break;
     case 'task-detail':
       await renderTaskDetail(container, route.taskId);
@@ -98,4 +102,23 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch (e) {
     alert(`恢复失败: ${e}`);
   }
+};
+
+// ─── 强制规则管理 ───────────────────────────────
+(window as any).addForceRule = async () => {
+  const app = (document.getElementById('fr-app') as HTMLInputElement)?.value?.trim();
+  const interval = Number((document.getElementById('fr-interval') as HTMLInputElement)?.value || 300);
+  if (!app) return alert('请输入应用名称');
+  try {
+    await invoke('set_force_rule', { input: { appName: app, remindIntervalSec: interval } });
+    location.reload();
+  } catch (e) { alert(`添加失败: ${e}`); }
+};
+
+(window as any).deleteForceRule = async (appName: string) => {
+  if (!confirm(`删除规则「${appName}」？`)) return;
+  try {
+    await invoke('clear_force_rule', { appName });
+    location.reload();
+  } catch (e) { alert(`删除失败: ${e}`); }
 };

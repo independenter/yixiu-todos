@@ -3,6 +3,7 @@
 export type Route =
   | { name: 'personal' }
   | { name: 'team' }
+  | { name: 'settings' }
   | { name: 'task-detail'; taskId: string }
   | { name: 'not-found' };
 
@@ -10,6 +11,7 @@ export function parseRoute(hash: string): Route {
   const h = hash.replace(/^#/, '');
   if (h === 'personal' || h === '' || !h) return { name: 'personal' };
   if (h === 'team') return { name: 'team' };
+  if (h === 'settings') return { name: 'settings' };
   const taskMatch = h.match(/^task\/(.+)$/);
   if (taskMatch) return { name: 'task-detail', taskId: decodeURIComponent(taskMatch[1]) };
   return { name: 'not-found' };
