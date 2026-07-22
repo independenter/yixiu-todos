@@ -134,159 +134,75 @@
       }
     </style>
     <script>
-    // 浏览器模式：内存数据库 + localStorage 持久化 + Mock Tauri API
+    // 浏览器模式：简单 Mock Tauri API（仅用于 UI 预览，数据不持久）
+    // 真实数据由 Tauri 后端 SQLite 管理
     if (!window.__TAURI_INTERNALS__) {
-      // camelCase→snake_case 转换（Tauri serde 自动做，这里手动模拟）
       const toSnake = (o) => {
         if (!o || typeof o !== 'object') return o;
         if (Array.isArray(o)) return o.map(toSnake);
         const r = {};
         for (const [k, v] of Object.entries(o)) {
-          const sk = k.replace(/[A-Z]/g, m => '_' + m.toLowerCase());
-          r[sk] = (v && typeof v === 'object' && !(v instanceof Date)) ? toSnake(v) : v;
+          r[k.replace(/[A-Z]/g, m => '_' + m.toLowerCase())] = (v && typeof v === 'object' && !(v instanceof Date)) ? toSnake(v) : v;
         }
         return r;
       };
 
-      const STORAGE_KEY = 'yixiu_todos_db';
-      const load = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || {}; } catch { return {}; } };
-      const save = (data) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {} };
-
       const DB = (() => {
-        const s = load();
-        let tasks = s.tasks || [];
-        let employees = s.employees || [];
-        let forceRules = s.forceRules || [];
-        let taskEvents = s.taskEvents || [];
-        let empTasks = s.empTasks || [];
-        let nextId = s.nextId || 1;
-        const persist = () => save({ tasks, employees, forceRules, taskEvents, empTasks, nextId });
-
-        const uid = () => 'id-' + String(nextId++).padStart(4, '0');
+        let tasks = [], employees = [], forceRules = [], taskEvents = [], empTasks = [];
+        let nextId = 1;
+        const uid = () => 'id-' + String(nextId++).padStart(3, '0');
         const now = () => new Date().toISOString();
         return {
-          // ── Tasks ──
-          createTask(input) {
-            const norm = toSnake(input);
-            const t = { ...norm, id: uid(), status: 'pending', created_at: now(), updated_at: now() };
-            tasks.push(t); persist(); return t.id;
-          },
+          createTask(input) { const t = { ...toSnake(input), id: uid(), status: 'pending', created_at: now(), updated_at: now() }; tasks.push(t); return t.id; },
           listTasks() { return [...tasks]; },
-          updateTask(id, patch) {
-            const t = tasks.find(x => x.id === id);
-            if (t) { Object.assign(t, toSnake(patch), { updated_at: now() }); persist(); }
-          },
-          deleteTask(id) { tasks = tasks.filter(x => x.id !== id); persist(); },
-          completeTask(id) {
-            const t = tasks.find(x => x.id === id);
-            if (t) { t.status = 'done'; t.updated_at = now(); persist(); }
-          },
-          // ── Employees ──
-          createEmployee(input) {
-            const e = { ...toSnake(input), id: uid(), status: 'active', created_at: now() };
-            employees.push(e); persist(); return e.id;
-          },
+          updateTask(id, patch) { const t = tasks.find(x => x.id === id); if (t) Object.assign(t, toSnake(patch), { updated_at: now() }); },
+          deleteTask(id) { tasks = tasks.filter(x => x.id !== id); },
+          completeTask(id) { const t = tasks.find(x => x.id === id); if (t) { t.status = 'done'; t.updated_at = now(); } },
+          createEmployee(input) { const e = { ...toSnake(input), id: uid(), status: 'active', created_at: now() }; employees.push(e); return e.id; },
           listEmployees() { return [...employees]; },
-          // ── Force Rules ──
           listForceRules() { return [...forceRules]; },
           setForceRule(input) {
-            const n = toSnake(input);
-            const existing = forceRules.find(r => r.app_name === n.app_name);
-            if (existing) { existing.remind_interval_sec = n.remind_interval_sec; existing.enabled = true; persist(); return existing.id; }
-            const r = { id: forceRules.length + 1, app_name: n.app_name, enabled: true, remind_interval_sec: n.remind_interval_sec || 300, created_at: now() };
-            forceRules.push(r); persist(); return r.id;
+            const n = toSnake(input); const ex = forceRules.find(r => r.app_name === n.app_name);
+            if (ex) { ex.remind_interval_sec = n.remind_interval_sec; return ex.id; }
+            const r = { id: forceRules.length + 1, ...n, enabled: true, created_at: now() }; forceRules.push(r); return r.id;
           },
-          clearForceRule(appName) { forceRules = forceRules.filter(r => r.app_name !== appName); persist(); },
-          // ── STAR Events ──
+          clearForceRule(appName) { forceRules = forceRules.filter(r => r.app_name !== appName); },
           getStarEvents(taskId) { return taskEvents.filter(e => e.task_id === taskId); },
-          addStarEvent(input) {
-            const ev = { ...toSnake(input), id: uid(), created_at: now() };
-            taskEvents.push(ev); persist(); return ev.id;
-          },
-          getTaskPauseStats(taskId) {
-            const pauses = taskEvents.filter(e => e.task_id === taskId && e.event_type === 'pause');
-            return { pause_count: pauses.length, total_pause_seconds: pauses.length * 1800, is_paused_now: false, current_pause_reason: null, current_pause_since: null };
-          },
-          // ── Helpers ──
-          getWorkload() {
-            const active = tasks.filter(t => t.status === 'pending' || t.status === 'active');
-            if (!active.length) return [];
-            return active.map(t => ({
-              time: t.start_time || now(),
-              total_percent: t.effort_percent || 50,
-              level: (t.effort_percent || 50) > 100 ? 'error' : (t.effort_percent || 50) > 80 ? 'warning' : 'ok',
-              task_ids: [t.id],
-            }));
-          },
-          getEmployeeWorkload(empId) {
-            const et = empTasks.filter(e => e.employee_id === empId);
-            const total = et.reduce((s, e) => s + (e.effort_percent || 0), 0);
-            const avg = et.length ? Math.round(et.reduce((s, e) => s + (e.progress || 0), 0) / et.length) : 0;
-            return { employee_id: empId, name: employees.find(e => e.id === empId)?.name || '', total_percent: total, active_tasks: et.length, avg_progress: avg, alerts: total > 100 ? ['精力占用超过 100%，存在时间冲突'] : [] };
-          },
-          assignTask(input) {
-            const n = toSnake(input);
-            const et = { ...n, id: uid(), progress: 0, status: 'pending', created_at: now(), updated_at: now() };
-            empTasks.push(et); persist(); return et.id;
-          },
-          getConflictReport() { return []; },
-          // ── Persistence ──
-          _save() { persist(); },
+          addStarEvent(input) { const ev = { ...toSnake(input), id: uid(), created_at: now() }; taskEvents.push(ev); return ev.id; },
+          getTaskPauseStats() { return { pause_count: 0, total_pause_seconds: 0, is_paused_now: false, current_pause_reason: null, current_pause_since: null }; },
+          getWorkload() { return tasks.filter(t => t.status === 'pending' || t.status === 'active').map(t => ({ time: t.start_time || now(), total_percent: t.effort_percent || 50, level: 'ok', task_ids: [t.id] })); },
+          getEmployeeWorkload(empId) { return { employee_id: empId, name: employees.find(e => e.id === empId)?.name || '', total_percent: 0, active_tasks: 0, avg_progress: 0, alerts: [] }; },
+          assignTask(input) { empTasks.push({ ...toSnake(input), id: uid(), progress: 0, status: 'pending', created_at: now(), updated_at: now() }); },
         };
       })();
 
-      window.__TAURI_INTERNALS__ = {
-        invoke: (cmd, args) => {
-          const a = args || {};
-          const i = toSnake(a.input || a);
-          switch (cmd) {
-            case 'list_tasks': return Promise.resolve(DB.listTasks());
-            case 'create_task': return Promise.resolve(DB.createTask(i));
-            case 'update_task': return Promise.resolve(DB.updateTask(a.id || i.id, i));
-            case 'delete_task': return Promise.resolve(DB.deleteTask(a.id || i.id));
-            case 'complete_task': return Promise.resolve(DB.completeTask(a.id || i.id));
-            case 'get_workload_panel': return Promise.resolve(DB.getWorkload());
-            case 'get_conflict_report': return Promise.resolve(DB.getConflictReport());
-            case 'list_employees': return Promise.resolve(DB.listEmployees());
-            case 'create_employee': return Promise.resolve(DB.createEmployee(i));
-            case 'get_employee_workload': return Promise.resolve(DB.getEmployeeWorkload(i.employee_id || a.employeeId));
-            case 'list_force_rules': return Promise.resolve(DB.listForceRules());
-            case 'set_force_rule': return Promise.resolve(DB.setForceRule(i));
-            case 'clear_force_rule': return Promise.resolve(DB.clearForceRule(i.app_name || a.appName));
-            case 'get_star_events': return Promise.resolve(DB.getStarEvents(i.task_id || a.taskId));
-            case 'add_star_event': return Promise.resolve(DB.addStarEvent(i));
-            case 'get_task_pause_stats': return Promise.resolve(DB.getTaskPauseStats(i.task_id || a.taskId));
-            case 'update_star_event':
-            case 'delete_star_event': return Promise.resolve(null);
-            case 'postpone_task': {
-              const t = DB.listTasks().find(x => x.id === (a.id || i.id));
-              if (t) { t.start_time = i.new_start || a.newStart; t.end_time = i.new_end || a.newEnd; DB._save(); }
-              return Promise.resolve(null);
-            }
-            case 'assign_task_to_employee': return Promise.resolve(DB.assignTask(i));
-            case 'update_employee_progress': return Promise.resolve(null);
-            case 'check_force_rule': return Promise.resolve({ required: false });
-            case 'record_force_response': return Promise.resolve(null);
-            case 'pause_task': {
-              const t = DB.listTasks().find(x => x.id === (i.task_id || a.taskId));
-              if (t) { t.status = 'paused'; DB._save(); }
-              return Promise.resolve(null);
-            }
-            case 'resume_task': {
-              const t = DB.listTasks().find(x => x.id === (i.task_id || a.taskId));
-              if (t) { t.status = 'active'; DB._save(); }
-              return Promise.resolve(null);
-            }
-            case 'schedule_reminder':
-            case 'cancel_reminder':
-            case 'send_notification': return Promise.resolve(null);
-            case 'export_time_report': return Promise.resolve('[]');
-            case 'vacuum_db': return Promise.resolve(null);
-            default: return Promise.resolve(null);
-          }
-        },
-      };
-      console.log('🖥️ 浏览器模式 - 内存数据库已启动 ✓');
+      window.__TAURI_INTERNALS__ = { invoke: (cmd, args) => {
+        const a = args || {};
+        const i = a.input ? toSnake(a.input) : toSnake(a);
+        switch (cmd) {
+          case 'list_tasks': return Promise.resolve(DB.listTasks());
+          case 'create_task': return Promise.resolve(DB.createTask(i));
+          case 'update_task': return Promise.resolve(DB.updateTask(a.id || i.id, i));
+          case 'delete_task': return Promise.resolve(DB.deleteTask(a.id || i.id));
+          case 'complete_task': return Promise.resolve(DB.completeTask(a.id || i.id));
+          case 'get_workload_panel': return Promise.resolve(DB.getWorkload());
+          case 'get_conflict_report': return Promise.resolve([]);
+          case 'list_employees': return Promise.resolve(DB.listEmployees());
+          case 'create_employee': return Promise.resolve(DB.createEmployee(i));
+          case 'get_employee_workload': return Promise.resolve(DB.getEmployeeWorkload(i.employee_id || a.employeeId));
+          case 'list_force_rules': return Promise.resolve(DB.listForceRules());
+          case 'set_force_rule': return Promise.resolve(DB.setForceRule(i));
+          case 'clear_force_rule': return Promise.resolve(DB.clearForceRule(i.app_name || a.appName));
+          case 'get_star_events': return Promise.resolve(DB.getStarEvents(i.task_id || a.taskId));
+          case 'add_star_event': return Promise.resolve(DB.addStarEvent(i));
+          case 'get_task_pause_stats': return Promise.resolve(DB.getTaskPauseStats());
+          case 'pause_task': { const t = DB.listTasks().find(x => x.id === (i.task_id || a.taskId)); if (t) t.status = 'paused'; return Promise.resolve(null); }
+          case 'resume_task': { const t = DB.listTasks().find(x => x.id === (i.task_id || a.taskId)); if (t) t.status = 'active'; return Promise.resolve(null); }
+          case 'assign_task_to_employee': return Promise.resolve(DB.assignTask(i));
+          default: return Promise.resolve(null);
+        }
+      }};
+      console.log('🖥️ 浏览器模式 - Mock Tauri API ✓（数据在内存中，刷新即失）');
     }
     </script>
   </head>
