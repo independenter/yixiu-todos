@@ -200,6 +200,9 @@
             clear_force_rule: ['DELETE','/api/force-rules/'+(args?.appName||'')],
             get_star_events: ['GET','/api/star/'+(args?.taskId||'')],
             get_task_pause_stats: ['GET','/api/tasks/'+(args?.taskId||'')+'/pause-stats'],
+            add_star_event: ['POST','/api/star'],
+            pause_task: ['POST','/api/tasks/'+(args?.taskId||'')+'/pause'],
+            resume_task: ['POST','/api/tasks/'+(args?.taskId||'')+'/resume'],
           };
           const ep = apiMap[cmd];
           if (ep) {
@@ -209,6 +212,9 @@
             if (cmd === 'update_task') body = args?.patch || args;
             if (cmd === 'set_force_rule') body = args?.input || args;
             if (cmd === 'create_employee') body = args?.input || args;
+            if (cmd === 'add_star_event') body = args?.input || args;
+            if (cmd === 'pause_task') body = args;
+            if (cmd === 'resume_task') body = args;
             // 转换 camelCase → snake_case 用于 HTTP API
             const toSnakeApi = (o) => {
               if (!o||typeof o!=='object') return o;

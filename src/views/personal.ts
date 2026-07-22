@@ -58,11 +58,24 @@ function getFormHtml(): string {
         <input id="tf-end-date" placeholder="2026-07-22" style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
         <input id="tf-end-time" placeholder="10:00" value="" style="width:90px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
       </div>
+      <div class="inline-form" style="margin-bottom:8px">
+        <select id="tf-after-task" style="padding:7px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;flex:1">
+          <option value="">接在某个任务之后...</option>
+        </select>
+      </div>
       <div style="display:flex;gap:8px">
         <button id="tf-save" style="padding:7px 14px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500">保存</button>
         <button id="tf-cancel" style="padding:7px 14px;background:#e2e8f0;color:#64748b;border:none;border-radius:6px;cursor:pointer">取消</button>
       </div>
     </div>`;
+}
+
+function populateAfterTaskSelect(selectedTaskId?: string): void {
+  const sel = document.getElementById('tf-after-task') as HTMLSelectElement;
+  if (!sel) return;
+  const otherTasks = Object.values(taskMap).filter(t => t.status !== 'done' && t.id !== editingId);
+  sel.innerHTML = '<option value="">接在某个任务之后...</option>' +
+    otherTasks.map(t => `<option value="${t.id}" ${t.id === selectedTaskId ? 'selected' : ''}>${escHtml(t.title)} (${t.end_time.slice(11,16)})</option>`).join('');
 }
 
 function showForm(mode: 'create' | 'edit', task?: Task): void {
@@ -110,6 +123,7 @@ function showForm(mode: 'create' | 'edit', task?: Task): void {
     endDate.value = soon.toISOString().slice(0, 10);
     endTime.value = `${pad(soon.getHours())}:${pad(soon.getMinutes())}`;
   }
+  populateAfterTaskSelect();
   form.style.display = '';
 }
 
@@ -121,6 +135,29 @@ function bindFormEvents(): void {
 
   document.getElementById('tf-cancel')?.addEventListener('click', () => {
     form.style.display = 'none';
+  });
+
+  // 接在某个任务之后 → 自动填充起止时间
+  document.getElementById('tf-after-task')?.addEventListener('change', (e) => {
+    const sel = e.target as HTMLSelectElement;
+    const tid = sel.value;
+    if (!tid || !taskMap[tid]) return;
+    const source = taskMap[tid];
+    const startDate = document.getElementById('tf-start-date') as HTMLInputElement;
+    const startTime = document.getElementById('tf-start-time') as HTMLInputElement;
+    const endDate = document.getElementById('tf-end-date') as HTMLInputElement;
+    const endTime = document.getElementById('tf-end-time') as HTMLInputElement;
+    // 设置开始时间为选中任务的结束时间
+    if (source.end_time) {
+      startDate.value = source.end_time.slice(0, 10);
+      startTime.value = source.end_time.slice(11, 16);
+    }
+    // 默认结束时间为开始后1小时
+    const s = new Date(`${startDate.value}T${startTime.value}`);
+    const e2 = new Date(s.getTime() + 3600000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    endDate.value = e2.toISOString().slice(0, 10);
+    endTime.value = `${pad(e2.getHours())}:${pad(e2.getMinutes())}`;
   });
 
   document.getElementById('tf-save')?.addEventListener('click', async () => {

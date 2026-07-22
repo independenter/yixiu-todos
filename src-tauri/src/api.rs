@@ -155,6 +155,38 @@ fn handle(method: &str, url: &str, body: &Value, db_path: &PathBuf) -> Result<St
         return serde_json::to_string(&rows).map_err(|e| e.to_string());
     }
 
+    // ─── STAR Events ──────────────────────────
+    if method == "POST" && url == "/api/star" {
+        let c = conn.lock().unwrap();
+        let id = uuid::Uuid::new_v4().to_string();
+        c.execute("INSERT INTO task_events (id,task_id,star_section,content,event_type,created_at) VALUES (?1,?2,?3,?4,?5,?6)",
+            rusqlite::params![id, body["task_id"].as_str().unwrap_or(""), body["star_section"].as_str().unwrap_or(""),
+            body["content"].as_str().unwrap_or(""), body["event_type"].as_str().unwrap_or("note"), chrono::Utc::now().to_rfc3339()]).unwrap();
+        return Ok(format!("\"{}\"", id));
+    }
+
+    if method == "POST" && url.contains("/pause") && !url.contains("pause-stats") {
+        let task_id = url.strip_prefix("/api/tasks/").and_then(|s| s.strip_suffix("/pause")).unwrap_or("");
+        let c = conn.lock().unwrap();
+        let now = chrono::Utc::now().to_rfc3339();
+        c.execute("UPDATE tasks SET status='paused',updated_at=?1 WHERE id=?2", rusqlite::params![now, task_id]).unwrap();
+        let eid = uuid::Uuid::new_v4().to_string();
+        c.execute("INSERT INTO task_events (id,task_id,star_section,content,event_type,created_at) VALUES (?1,?2,'A',?3,'pause',?4)", rusqlite::params![eid, task_id, body["reason"].as_str().unwrap_or(""), now]).unwrap();
+        c.execute("INSERT INTO task_pauses (task_id,paused_at,reason) VALUES (?1,?2,?3)", rusqlite::params![task_id, now, body["reason"].as_str().unwrap_or("")]).unwrap();
+        return Ok("null".into());
+    }
+
+    if method == "POST" && url.contains("/resume") {
+        let task_id = url.strip_prefix("/api/tasks/").and_then(|s| s.strip_suffix("/resume")).unwrap_or("");
+        let c = conn.lock().unwrap();
+        let now = chrono::Utc::now().to_rfc3339();
+        c.execute("UPDATE tasks SET status='active',updated_at=?1 WHERE id=?2", rusqlite::params![now, task_id]).unwrap();
+        let eid = uuid::Uuid::new_v4().to_string();
+        c.execute("INSERT INTO task_events (id,task_id,star_section,content,event_type,created_at) VALUES (?1,?2,'A','恢复工作','resume',?3)", rusqlite::params![eid, task_id, now]).unwrap();
+        c.execute("UPDATE task_pauses SET resumed_at=?2 WHERE task_id=?1 AND resumed_at IS NULL", rusqlite::params![task_id, now]).unwrap();
+        return Ok("null".into());
+    }
+
     if method == "GET" && url.ends_with("/pause-stats") {
         let task_id = url.strip_prefix("/api/tasks/").and_then(|s| s.strip_suffix("/pause-stats")).unwrap_or("");
         let c = conn.lock().unwrap();
