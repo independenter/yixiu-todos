@@ -49,9 +49,9 @@ function getFormHtml(): string {
         <input id="tf-category" placeholder="类别" value="personal" style="width:120px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none">
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-        <input id="tf-start" type="datetime-local" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;flex:1">
-        <span>→</span>
-        <input id="tf-end" type="datetime-local" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;flex:1">
+        <input id="tf-start" type="datetime-local" class="datetime-input" style="flex:1">
+        <span style="color:#94a3b8">→</span>
+        <input id="tf-end" type="datetime-local" class="datetime-input" style="flex:1">
       </div>
       <div style="display:flex;gap:8px">
         <button id="tf-save" style="padding:7px 14px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500">保存</button>
@@ -89,8 +89,11 @@ function showForm(mode: 'create' | 'edit', task?: Task): void {
     prioritySelect.value = '2';
     effortInput.value = '100';
     categoryInput.value = 'personal';
-    startInput.value = '';
-    endInput.value = '';
+    const now = new Date();
+    const roundMin = (d: Date) => new Date(d.getTime() - d.getSeconds() * 1000 - d.getMilliseconds());
+    const soon = new Date(now.getTime() + 3600000);
+    startInput.value = roundMin(now).toISOString().slice(0, 16);
+    endInput.value = roundMin(soon).toISOString().slice(0, 16);
   }
   form.style.display = '';
 }

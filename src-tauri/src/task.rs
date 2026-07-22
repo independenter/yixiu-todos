@@ -279,7 +279,9 @@ pub fn get_conflict_report(state: State<'_, DbState>) -> Result<Vec<ConflictItem
     conflict::recompute_all(state.inner()).map_err(|e| e.to_string())?;
     let conn = state.personal.lock().unwrap();
     let mut s = conn.prepare(
-        "SELECT task_a_id, task_b_id, overlap_minutes, severity, start_time || '-' || end_time
+        "SELECT task_a_id, task_b_id, overlap_minutes, severity,
+                (SELECT start_time FROM tasks WHERE id = task_a_id) || '-' ||
+                (SELECT end_time FROM tasks WHERE id = task_a_id)
          FROM task_overlaps ORDER BY overlap_minutes DESC"
     ).map_err(|e| e.to_string())?;
     let mut out = Vec::new();
