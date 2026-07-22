@@ -105,47 +105,39 @@ pub fn get_star_events(
 ) -> Result<Vec<StarEventRow>, String> {
     let conn = state.personal.lock().unwrap();
 
-    let (sql, section_filter) = if let Some(ref _sec) = star_section {
-        (
-            "SELECT id, task_id, star_section, content, event_type, created_at
-             FROM task_events WHERE task_id = ?1 AND star_section = ?2
-             ORDER BY created_at ASC",
-            true,
-        )
+    let sql = if star_section.is_some() {
+        "SELECT id, task_id, star_section, content, event_type, created_at
+         FROM task_events WHERE task_id = ?1 AND star_section = ?2
+         ORDER BY created_at ASC"
     } else {
-        (
-            "SELECT id, task_id, star_section, content, event_type, created_at
-             FROM task_events WHERE task_id = ?1
-             ORDER BY created_at ASC",
-            false,
-        )
+        "SELECT id, task_id, star_section, content, event_type, created_at
+         FROM task_events WHERE task_id = ?1
+         ORDER BY created_at ASC"
     };
 
     let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
 
-    let mut out = Vec::new();
+    let map_row = |r: &rusqlite::Row| {
+        Ok(StarEventRow {
+            id: r.get(0)?, task_id: r.get(1)?,
+            star_section: r.get(2)?, content: r.get(3)?,
+            event_type: r.get(4)?, created_at: r.get(5)?,
+        })
+    };
 
-    if section_filter {
-        let rows = stmt.query_map(params![task_id, star_section.unwrap()], |r| {
-            Ok(StarEventRow {
-                id: r.get(0)?, task_id: r.get(1)?,
-                star_section: r.get(2)?, content: r.get(3)?,
-                event_type: r.get(4)?, created_at: r.get(5)?,
-            })
-        }).map_err(|e| e.to_string())?;
-        for r in rows { out.push(r.map_err(|e| e.to_string())?); }
+    let rows = if let Some(ref sec) = star_section {
+        stmt.query_map(params![task_id, sec], map_row)
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?
     } else {
-        let rows = stmt.query_map(params![task_id], |r| {
-            Ok(StarEventRow {
-                id: r.get(0)?, task_id: r.get(1)?,
-                star_section: r.get(2)?, content: r.get(3)?,
-                event_type: r.get(4)?, created_at: r.get(5)?,
-            })
-        }).map_err(|e| e.to_string())?;
-        for r in rows { out.push(r.map_err(|e| e.to_string())?); }
-    }
+        stmt.query_map(params![task_id], map_row)
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?
+    };
 
-    Ok(out)
+    Ok(rows)
 }
 
 #[tauri::command]
@@ -161,6 +153,9 @@ pub fn update_star_event(
         ).map_err(|e| e.to_string())?;
     }
     if let Some(event_type) = &input.event_type {
+        if !["note", "blocker", "pause", "resume"].contains(&event_type.as_str()) {
+            return Err("event_type 必须是 note/blocker/pause/resume".into());
+        }
         conn.execute(
             "UPDATE task_events SET event_type = ?1 WHERE id = ?2",
             params![event_type, input.event_id],
@@ -280,7 +275,7 @@ pub fn get_task_pause_stats(
     Ok(TaskPauseStats {
         task_id,
         pause_count,
-        total_pause_seconds: (total_pause_seconds as i64).max(0),
+        total_pause_seconds: total_pause_seconds.max(0),
         is_paused_now: current_pause.is_some(),
         current_pause_reason: current_pause.as_ref().map(|(r, _)| r.clone()),
         current_pause_since: current_pause.map(|(_, s)| s),
