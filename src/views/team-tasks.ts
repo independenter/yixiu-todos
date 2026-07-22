@@ -74,15 +74,14 @@ export async function renderProjectTasks(container: HTMLElement, projectId: stri
           <select id="at-employee-${projectId}" style="flex:1;padding:7px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff"><option value="">选择员工...</option></select>
         </div>
         <div class="inline-form">
-          <input id="at-effort-${projectId}" type="number" placeholder="精力%" value="50" style="width:80px">
-          <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px">
-            开始
-            <input id="at-start-${projectId}" type="datetime-local" style="padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px">
-          </label>
-          <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px">
-            结束
-            <input id="at-end-${projectId}" type="datetime-local" style="padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px">
-          </label>
+          <input id="at-effort-${projectId}" type="number" placeholder="精力%" value="50" style="width:80px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none">
+          <span style="font-size:13px;color:#64748b">开始</span>
+          <input id="at-start-date-${projectId}" placeholder="2026-07-22" style="width:110px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
+          <input id="at-start-time-${projectId}" placeholder="09:00" style="width:80px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
+          <span style="color:#94a3b8">→</span>
+          <span style="font-size:13px;color:#64748b">结束</span>
+          <input id="at-end-date-${projectId}" placeholder="2026-07-22" style="width:110px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
+          <input id="at-end-time-${projectId}" placeholder="10:00" style="width:80px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
           <button onclick="confirmAssign('${projectId}')">分配</button>
           <button onclick="document.getElementById('assign-form-${projectId}').style.display='none'" style="background:#e2e8f0;color:#64748b">取消</button>
         </div>
