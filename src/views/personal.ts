@@ -124,18 +124,32 @@ function bindFormEvents(): void {
 
   document.getElementById('tf-save')?.addEventListener('click', async () => {
     const title = (document.getElementById('tf-title') as HTMLInputElement).value.trim();
-    if (!title) { alert('请输入任务标题'); return; }
+    if (!title) { alert('⚠️ 请输入任务标题'); return; }
 
     const description = (document.getElementById('tf-desc') as HTMLTextAreaElement).value.trim();
     const priority = parseInt((document.getElementById('tf-priority') as HTMLSelectElement).value);
     const effort_percent = parseInt((document.getElementById('tf-effort') as HTMLInputElement).value) || 100;
+    if (effort_percent < 0 || effort_percent > 200) { alert('⚠️ 精力占用必须在 0-200 之间'); return; }
     const category = (document.getElementById('tf-category') as HTMLInputElement).value.trim() || 'personal';
     const startDate = (document.getElementById('tf-start-date') as HTMLInputElement).value;
     const startTime = (document.getElementById('tf-start-time') as HTMLInputElement).value;
     const endDate = (document.getElementById('tf-end-date') as HTMLInputElement).value;
     const endTime = (document.getElementById('tf-end-time') as HTMLInputElement).value;
-    const start_time = (startDate && startTime) ? new Date(`${startDate}T${startTime}`).toISOString() : '';
-    const end_time = (endDate && endTime) ? new Date(`${endDate}T${endTime}`).toISOString() : '';
+
+    // 日期格式校验
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    const timeRe = /^\d{2}:\d{2}$/;
+    if (!dateRe.test(startDate) || !timeRe.test(startTime)) { alert('⚠️ 开始时间格式不正确，请使用 YYYY-MM-DD HH:MM'); return; }
+    if (!dateRe.test(endDate) || !timeRe.test(endTime)) { alert('⚠️ 结束时间格式不正确，请使用 YYYY-MM-DD HH:MM'); return; }
+
+    const startDt = new Date(`${startDate}T${startTime}`);
+    const endDt = new Date(`${endDate}T${endTime}`);
+    if (isNaN(startDt.getTime())) { alert('⚠️ 开始时间无效'); return; }
+    if (isNaN(endDt.getTime())) { alert('⚠️ 结束时间无效'); return; }
+    if (endDt <= startDt) { alert('⚠️ 结束时间必须晚于开始时间'); return; }
+
+    const start_time = startDt.toISOString();
+    const end_time = endDt.toISOString();
 
     try {
       if (editingId) {
@@ -146,7 +160,7 @@ function bindFormEvents(): void {
       form.style.display = 'none';
       if (currentContainer) renderPersonal(currentContainer);
     } catch (e) {
-      alert('操作失败: ' + e);
+      alert('❌ 操作失败: ' + e);
     }
   });
 }
