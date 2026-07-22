@@ -122,3 +122,36 @@ document.addEventListener('DOMContentLoaded', () => {
     location.reload();
   } catch (e) { alert(`删除失败: ${e}`); }
 };
+
+// ─── 团队面板：员工管理 ───────────────────────────
+
+(window as any).toggleEl = (id: string) => {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+};
+
+(window as any).createEmployee = async () => {
+  const name = (document.getElementById('emp-name') as HTMLInputElement)?.value?.trim();
+  const role = (document.getElementById('emp-role') as HTMLInputElement)?.value?.trim();
+  const email = (document.getElementById('emp-email') as HTMLInputElement)?.value?.trim();
+  if (!name) return alert('请输入姓名');
+  try {
+    await invoke('create_employee', { input: { name, role, email } });
+    location.reload();
+  } catch (e) { alert(`创建失败: ${e}`); }
+};
+
+(window as any).assignTask = async (empId: string) => {
+  const title = (document.getElementById(`at-${empId}-title`) as HTMLInputElement)?.value?.trim();
+  const effort = Number((document.getElementById(`at-${empId}-effort`) as HTMLInputElement)?.value || 50);
+  const start = (document.getElementById(`at-${empId}-start`) as HTMLInputElement)?.value;
+  const end = (document.getElementById(`at-${empId}-end`) as HTMLInputElement)?.value;
+  if (!title) return alert('请输入任务标题');
+  if (!start || !end) return alert('请选择起止时间');
+  try {
+    await invoke('assign_task_to_employee', {
+      input: { employeeId: empId, title, effortPercent: effort, startTime: new Date(start).toISOString(), endTime: new Date(end).toISOString() }
+    });
+    location.reload();
+  } catch (e) { alert(`分配失败: ${e}`); }
+};

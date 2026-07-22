@@ -12,7 +12,18 @@ interface EmpWorkload {
 }
 
 export async function renderTeam(container: HTMLElement): Promise<void> {
-  container.innerHTML = '<h2 style="font-size:20px;font-weight:700;margin-bottom:16px">👥 团队面板</h2><div id="employees"></div>';
+  container.innerHTML = `
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:16px">👥 团队面板</h2>
+    <button onclick="toggleEl('add-emp')" style="background:none;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px;margin-bottom:12px;width:100%;text-align:center;color:#334155">➕ 添加员工</button>
+    <div id="add-emp" style="display:none" class="card">
+      <div class="inline-form">
+        <input id="emp-name" placeholder="姓名">
+        <input id="emp-role" placeholder="角色">
+        <input id="emp-email" placeholder="邮箱">
+        <button onclick="createEmployee()">保存</button>
+      </div>
+    </div>
+    <div id="employees"></div>`;
 
   try {
     const employees = await invoke<Employee[]>('list_employees');
@@ -37,11 +48,24 @@ export async function renderTeam(container: HTMLElement): Promise<void> {
               <span>活跃: <strong>${wl.active_tasks}</strong></span>
               <span>进度: <strong style="color:${progressColor}">${wl.avg_progress}%</strong></span>
             </div>
+            <div class="bar-bg" style="margin-top:8px">
+              <div class="bar-fill" style="width:${wl.avg_progress}%;background:${progressColor}"></div>
+            </div>
             ${wl.alerts.length > 0 ? `
               <div style="margin-top:8px;font-size:13px">
                 ${wl.alerts.map(a => `<div style="color:#ef4444;padding:2px 0">⚠️ ${a}</div>`).join('')}
               </div>
             ` : ''}
+            <button onclick="toggleEl('assign-${emp.id}')" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;cursor:pointer;font-size:13px;margin-top:10px;color:#475569">📋 分配任务</button>
+            <div id="assign-${emp.id}" style="display:none;margin-top:8px">
+              <div class="inline-form">
+                <input id="at-${emp.id}-title" placeholder="任务标题" style="flex:1">
+                <input id="at-${emp.id}-effort" type="number" placeholder="精力%" value="50" style="width:70px">
+                <input id="at-${emp.id}-start" type="datetime-local" style="width:160px">
+                <input id="at-${emp.id}-end" type="datetime-local" style="width:160px">
+                <button onclick="assignTask('${emp.id}')">分配</button>
+              </div>
+            </div>
           </div>`;
       } catch { /* skip failed load */ }
     }
