@@ -18,6 +18,7 @@ interface ConflictItem {
   overlap_minutes: number;
   severity: 'warning' | 'error';
   time_range: string;
+  peak_percent: number;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -278,12 +279,17 @@ export async function renderPersonal(container: HTMLElement): Promise<void> {
         const icon = c.severity === 'error' ? '🔴' : '🟡';
         const titleA = taskMap[c.task_a_id]?.title || '(已删除)';
         const titleB = taskMap[c.task_b_id]?.title || '(已删除)';
+        const peakColor = c.peak_percent > 100 ? '#ef4444' : '#f59e0b';
         clHtml += `
         <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f1f5f9">
           <span style="font-size:18px;line-height:1.4">${icon}</span>
           <div style="flex:1;min-width:0">
             <div style="font-size:14px;font-weight:500;color:#1e293b">${escHtml(titleA)} ↔ ${escHtml(titleB)}</div>
-            <div style="font-size:12px;color:#ef4444;margin-top:3px">重叠 ${c.overlap_minutes} 分钟</div>
+            <div style="display:flex;gap:12px;font-size:12px;margin-top:3px">
+              <span style="color:#64748b">重叠 ${c.overlap_minutes} 分钟</span>
+              <span style="color:${peakColor};font-weight:600">并发 ${c.peak_percent}%</span>
+              <span style="color:#94a3b8">${c.severity === 'error' ? '⚠️ 过载' : '⚡ 注意'}</span>
+            </div>
           </div>
         </div>`;
       }

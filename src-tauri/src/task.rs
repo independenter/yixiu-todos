@@ -50,6 +50,7 @@ pub struct ConflictItem {
     pub overlap_minutes: i64,
     pub severity: String,    // warning / error
     pub time_range: String,
+    pub peak_percent: i64,   // 冲突时刻的精力占用总和
 }
 
 // ─── 工具 ──────────────────────────────────────────────
@@ -281,14 +282,16 @@ pub fn get_conflict_report(state: State<'_, DbState>) -> Result<Vec<ConflictItem
     let mut s = conn.prepare(
         "SELECT task_a_id, task_b_id, overlap_minutes, severity,
                 (SELECT start_time FROM tasks WHERE id = task_a_id) || '-' ||
-                (SELECT end_time FROM tasks WHERE id = task_a_id)
+                (SELECT end_time FROM tasks WHERE id = task_a_id),
+                (SELECT effort_percent FROM tasks WHERE id = task_a_id) +
+                (SELECT effort_percent FROM tasks WHERE id = task_b_id)
          FROM task_overlaps ORDER BY overlap_minutes DESC"
     ).map_err(|e| e.to_string())?;
     let mut out = Vec::new();
     let rows = s.query_map([], |r| Ok(ConflictItem {
         task_a_id: r.get(0)?, task_b_id: r.get(1)?,
         overlap_minutes: r.get(2)?, severity: r.get(3)?,
-        time_range: r.get(4)?,
+        time_range: r.get(4)?, peak_percent: r.get(5)?,
     })).map_err(|e| e.to_string())?;
     for r in rows { out.push(r.map_err(|e| e.to_string())?); }
     Ok(out)

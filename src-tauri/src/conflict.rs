@@ -78,13 +78,15 @@ pub fn recompute_with_conn(conn: &Connection) -> rusqlite::Result<()> {
 pub fn list(conn: &Connection) -> rusqlite::Result<Vec<ConflictItem>> {
     let mut s = conn.prepare(
         "SELECT task_a_id,task_b_id,overlap_minutes,severity,
-                (SELECT start_time FROM tasks WHERE id=task_a_id)||'-'||(SELECT end_time FROM tasks WHERE id=task_a_id)
+                (SELECT start_time FROM tasks WHERE id=task_a_id)||'-'||(SELECT end_time FROM tasks WHERE id=task_a_id),
+                (SELECT effort_percent FROM tasks WHERE id=task_a_id)+
+                (SELECT effort_percent FROM tasks WHERE id=task_b_id)
          FROM task_overlaps ORDER BY overlap_minutes DESC"
     )?;
     let rows = s.query_map([], |r| Ok(ConflictItem {
         task_a_id: r.get(0)?, task_b_id: r.get(1)?,
         overlap_minutes: r.get(2)?, severity: r.get(3)?,
-        time_range: r.get(4)?,
+        time_range: r.get(4)?, peak_percent: r.get(5)?,
     }))?;
     let mut out = Vec::new();
     for r in rows { out.push(r?); }
@@ -129,6 +131,7 @@ pub fn check_one_against_existing(
             task_a_id: "new".into(), task_b_id: id,
             overlap_minutes: mins, severity: sev.into(),
             time_range: format!("{}-{}", ns, ne),
+            peak_percent: peak,
         });
     }
     Ok(out)
