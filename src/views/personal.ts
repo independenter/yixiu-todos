@@ -229,20 +229,74 @@ function bindTaskActions(tl: HTMLElement): void {
   });
 
   // Complete checkbox
-  tl.addEventListener('change', (e) => {
+  tl.addEventListener('change', async (e) => {
     const cb = (e.target as HTMLElement).closest('.complete-cb') as HTMLInputElement;
     if (!cb) return;
     e.stopPropagation();
     const id = cb.dataset.completeId;
     if (!id) return;
-    invoke('complete_task', { id }).then(() => {
-      if (currentContainer) renderPersonal(currentContainer);
-    }).catch((err) => {
+    try {
+      await invoke('complete_task', { id });
+    } catch (err) {
       alert('操作失败: ' + err);
+    } finally {
       if (currentContainer) renderPersonal(currentContainer);
-    });
+    }
   });
 }
+
+// ─── 归档视图 ──────────────────────────────
+function renderArchiveModal(done: Task[]): void {
+  let sorted = [...done];
+  const sortMode = archiveSortMode;
+  if (sortMode === 'updated_at') {
+    sorted.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  } else if (sortMode === 'title') {
+    sorted.sort((a, b) => a.title.localeCompare(b.title));
+  } else if (sortMode === 'created_at') {
+    sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
+
+  const sortOpts = [
+    { key: 'updated_at', label: '📅 按完成时间' },
+    { key: 'title', label: '📝 按标题' },
+    { key: 'created_at', label: '🕐 按创建时间' },
+  ];
+
+  const overlay = document.createElement('div');
+  overlay.id = 'archive-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:20px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0">📁 归档 (${done.length})</h3>
+        <span onclick="document.getElementById('archive-overlay')?.remove()" style="cursor:pointer;font-size:20px;opacity:0.5">✕</span>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+        ${sortOpts.map(o => `
+          <span onclick="document.getElementById('archive-overlay')?.remove();showDoneTasks('${o.key}')" style="cursor:pointer;padding:4px 10px;border-radius:5px;font-size:12px;${o.key === sortMode ? 'background:#3b82f6;color:#fff' : 'background:#f1f5f9;color:#64748b'}">${o.label}</span>
+        `).join('')}
+      </div>
+      ${sorted.length === 0 ? '<p style="color:#94a3b8">暂无已完成任务</p>' :
+        sorted.map(t => `
+          <div onclick="location.hash='#task/${t.id}';document.getElementById('archive-overlay')?.remove()" style="padding:8px 10px;margin:4px 0;background:#f8fafc;border-radius:6px;cursor:pointer">
+            <div style="font-weight:500;font-size:14px">${escHtml(t.title)}</div>
+            <div style="font-size:12px;color:#94a3b8">完成时间: ${t.updated_at.slice(0,16)}</div>
+          </div>
+        `).join('')}
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
+let archiveSortMode = 'created_at';
+
+(window as any).showDoneTasks = (sortMode?: string) => {
+  document.getElementById('archive-overlay')?.remove();
+  const done = Object.values(taskMap).filter(t => t.status === 'done');
+  archiveSortMode = sortMode || 'created_at';
+  renderArchiveModal(done);
+};
 
 // ─── 时间范围选择 ──────────────────────────────
 let workloadRange = 'week'; // '3day' | 'week' | 'month' | 'quarter' | 'all'
@@ -306,7 +360,8 @@ export async function renderPersonal(container: HTMLElement): Promise<void> {
           <div style="font-size:24px;font-weight:700;color:#334155">${rate}%</div>
           <div style="font-size:12px;color:#64748b">完成率</div>
         </div>
-      </div>`;
+      </div>
+      <div style="text-align:right;margin-top:8px"><span onclick="showDoneTasks()" style="cursor:pointer;color:#3b82f6;font-size:13px">📁 归档 (${done})</span></div>`;
 
     // ─── 精力时间轴（可视化） ──────────
     const wl = document.getElementById('workload')!;
@@ -357,13 +412,14 @@ export async function renderPersonal(container: HTMLElement): Promise<void> {
       wl.innerHTML = tlBars;
     }
 
-    // ─── 任务列表 ────────────────────────────
+    // ─── 任务列表（过滤已完成） ──────────────
     const tl = document.getElementById('tasks')!;
-    let tlHtml = '<h3>📌 任务列表 <span style="font-weight:400;font-size:13px;color:#94a3b8">(' + tasks.length + ')</span></h3>';
+    const activeTasks = tasks.filter(t => t.status !== 'done');
+    let tlHtml = '<h3>📌 任务列表 <span style="font-weight:400;font-size:13px;color:#94a3b8">(' + activeTasks.length + ')</span></h3>';
     tlHtml += '<button id="btn-new-task" style="padding:6px 14px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500;font-size:13px;margin-bottom:10px">➕ 新建任务</button>';
     tlHtml += getFormHtml();
 
-    for (const t of tasks) {
+    for (const t of activeTasks) {
       const badgeClass = `badge badge-${t.status === 'done' ? 'done' : t.status === 'paused' ? 'paused' : t.status === 'active' ? 'active' : 'pending'}`;
       const borderColor = t.status === 'done' ? '#22c55e' : t.status === 'paused' ? '#f59e0b' : t.status === 'active' ? '#3b82f6' : '#e2e8f0';
       const isDone = t.status === 'done';
@@ -380,7 +436,13 @@ export async function renderPersonal(container: HTMLElement): Promise<void> {
           </div>
         </div>`;
     }
-    if (tasks.length === 0) tlHtml += '<p style="color:#94a3b8;font-size:14px;padding:12px 0">还没有任务，快去创建吧 ✨</p>';
+    if (activeTasks.length === 0) {
+      if (tasks.length === 0) {
+        tlHtml += '<p style="color:#94a3b8;font-size:14px;padding:12px 0">还没有任务，快去创建吧 ✨</p>';
+      } else {
+        tlHtml += '<p style="color:#94a3b8;font-size:14px;padding:12px 0">所有任务已完成 ✓</p>';
+      }
+    }
     tl.innerHTML = tlHtml;
 
     // ─── 冲突报告 ────────────────────────────
