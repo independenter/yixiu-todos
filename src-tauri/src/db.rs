@@ -100,6 +100,9 @@ fn create_schema(conn: &Connection) -> SqlResult<()> {
         "#,
     )?;
 
+    // 兼容：为旧表添加 star_round 列（首次执行忽略重复列错误）
+    let _ = conn.execute("ALTER TABLE task_events ADD COLUMN star_round INTEGER NOT NULL DEFAULT 1", []);
+
     // ─── 员工表 ───────────────────────────────────────────
     conn.execute_batch(
         r#"
@@ -142,9 +145,11 @@ fn create_schema(conn: &Connection) -> SqlResult<()> {
             star_section  TEXT NOT NULL CHECK(star_section IN ('S','T','A','R')),
             content       TEXT NOT NULL,
             event_type    TEXT NOT NULL DEFAULT 'note',
+            star_round    INTEGER NOT NULL DEFAULT 1,
             created_at    TEXT NOT NULL,
             FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
         );
+        -- 迁移（忽略已有列错误）
 
         CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id);
         CREATE INDEX IF NOT EXISTS idx_task_events_section ON task_events(task_id, star_section);

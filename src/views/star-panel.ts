@@ -4,7 +4,8 @@ import { invoke } from '@tauri-apps/api/core';
 
 interface StarEvent {
   id: string; task_id: string; star_section: string;
-  content: string; event_type: string; created_at: string;
+  content: string; event_type: string; star_round: number;
+  created_at: string;
 }
 
 interface PauseStats {
@@ -27,6 +28,18 @@ const EVENT_ICONS: Record<string, string> = {
   pause: '⏸️', resume: '▶️',
 };
 
+let _currentStarRound = 1;
+
+(window as any).switchStarRound = (round: number) => {
+  _currentStarRound = round;
+  const panel = document.getElementById('star-panel');
+  if (panel) {
+    const taskId = panel.getAttribute('data-task-id') || '';
+    const taskStatus = panel.getAttribute('data-task-status') || '';
+    renderStarPanel(panel, taskId, taskStatus);
+  }
+};
+
 export async function renderStarPanel(container: HTMLElement, taskId: string, _taskStatus: string): Promise<void> {
   container.innerHTML = '<h3 style="font-size:15px;font-weight:600;margin-bottom:12px;color:#334155">📋 STAR 任务定义</h3>';
 
@@ -36,9 +49,42 @@ export async function renderStarPanel(container: HTMLElement, taskId: string, _t
     invoke<PauseStats>('get_task_pause_stats', { taskId }),
   ]);
 
+  // Store task id for switchStarRound
+  container.setAttribute('data-task-id', taskId);
+  container.setAttribute('data-task-status', _taskStatus);
+
+  // Group by round
+  const rounds = new Map<number, StarEvent[]>();
+  for (const e of events) {
+    const r = e.star_round || 1;
+    if (!rounds.has(r)) rounds.set(r, []);
+    rounds.get(r)!.push(e);
+  }
+  const roundKeys = [...rounds.keys()].sort();
+
+  // Select current round
+  if (roundKeys.length > 0 && !roundKeys.includes(_currentStarRound)) {
+    _currentStarRound = roundKeys[roundKeys.length - 1];
+  }
+  const currentRound = _currentStarRound;
+
+  // Render round tabs
+  if (roundKeys.length > 1) {
+    let tabHtml = '<div style="display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap">';
+    for (const r of roundKeys) {
+      const active = r === currentRound;
+      tabHtml += `<span onclick="switchStarRound(${r})" style="padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer;${active?'background:#3b82f6;color:#fff':'background:#f1f5f9;color:#64748b'}">第${r}轮</span>`;
+    }
+    tabHtml += '</div>';
+    container.innerHTML += tabHtml;
+  }
+
+  // Filter events by current round
+  const currentEvents = (rounds.get(currentRound) || []);
+
   // Group by section
   const grouped: Record<string, StarEvent[]> = { S: [], T: [], A: [], R: [] };
-  for (const e of events) {
+  for (const e of currentEvents) {
     if (grouped[e.star_section]) grouped[e.star_section].push(e);
   }
 

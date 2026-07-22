@@ -17,6 +17,7 @@ pub struct StarEventInput {
     pub star_section: String,  // 'S' | 'T' | 'A' | 'R'
     pub content: String,
     pub event_type: Option<String>,  // note/research/design/coding/test/review/doc/meeting/blocker/change/decision/pause/resume
+    pub star_round: Option<i64>,     // STAR 轮次（默认自动递增）
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -26,6 +27,7 @@ pub struct StarEventRow {
     pub star_section: String,
     pub content: String,
     pub event_type: String,
+    pub star_round: i64,
     pub created_at: String,
 }
 
@@ -71,10 +73,17 @@ pub fn add_star_event(
         return Err("event_type 无效".into());
     }
 
+    let round = input.star_round.unwrap_or_else(|| {
+        conn.query_row(
+            "SELECT COALESCE(MAX(star_round), 1) FROM task_events WHERE task_id = ?1",
+            params![input.task_id], |r| r.get(0)
+        ).unwrap_or(1)
+    });
+
     conn.execute(
-        "INSERT INTO task_events (id, task_id, star_section, content, event_type, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![id, input.task_id, input.star_section, input.content, event_type, now],
+        "INSERT INTO task_events (id, task_id, star_section, content, event_type, star_round, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![id, input.task_id, input.star_section, input.content, event_type, round, now],
     ).map_err(|e| e.to_string())?;
 
     // If pause event, also insert into task_pauses
@@ -106,11 +115,11 @@ pub fn get_star_events(
     let conn = state.personal.lock().unwrap();
 
     let sql = if star_section.is_some() {
-        "SELECT id, task_id, star_section, content, event_type, created_at
+        "SELECT id, task_id, star_section, content, event_type, star_round, created_at
          FROM task_events WHERE task_id = ?1 AND star_section = ?2
          ORDER BY created_at ASC"
     } else {
-        "SELECT id, task_id, star_section, content, event_type, created_at
+        "SELECT id, task_id, star_section, content, event_type, star_round, created_at
          FROM task_events WHERE task_id = ?1
          ORDER BY created_at ASC"
     };
@@ -121,7 +130,8 @@ pub fn get_star_events(
         Ok(StarEventRow {
             id: r.get(0)?, task_id: r.get(1)?,
             star_section: r.get(2)?, content: r.get(3)?,
-            event_type: r.get(4)?, created_at: r.get(5)?,
+            event_type: r.get(4)?, star_round: r.get(5)?,
+            created_at: r.get(6)?,
         })
     };
 
@@ -192,12 +202,18 @@ pub fn pause_task(
         params![now, task_id],
     ).map_err(|e| e.to_string())?;
 
+    // Determine current round
+    let round: i64 = conn.query_row(
+        "SELECT COALESCE(MAX(star_round), 1) FROM task_events WHERE task_id = ?1",
+        params![task_id], |r| r.get(0)
+    ).unwrap_or(1);
+
     // Insert pause event
     let event_id = uuid::Uuid::new_v4().to_string();
     conn.execute(
-        "INSERT INTO task_events (id, task_id, star_section, content, event_type, created_at)
-         VALUES (?1, ?2, 'A', ?3, 'pause', ?4)",
-        params![event_id, task_id, &reason_text, now],
+        "INSERT INTO task_events (id, task_id, star_section, content, event_type, star_round, created_at)
+         VALUES (?1, ?2, 'A', ?3, 'pause', ?4, ?5)",
+        params![event_id, task_id, &reason_text, round, now],
     ).map_err(|e| e.to_string())?;
 
     // Insert into task_pauses
@@ -223,12 +239,18 @@ pub fn resume_task(
         params![now, task_id],
     ).map_err(|e| e.to_string())?;
 
+    // Determine current round
+    let round: i64 = conn.query_row(
+        "SELECT COALESCE(MAX(star_round), 1) FROM task_events WHERE task_id = ?1",
+        params![task_id], |r| r.get(0)
+    ).unwrap_or(1);
+
     // Insert resume event
     let event_id = uuid::Uuid::new_v4().to_string();
     conn.execute(
-        "INSERT INTO task_events (id, task_id, star_section, content, event_type, created_at)
-         VALUES (?1, ?2, 'A', '恢复工作', 'resume', ?3)",
-        params![event_id, task_id, now],
+        "INSERT INTO task_events (id, task_id, star_section, content, event_type, star_round, created_at)
+         VALUES (?1, ?2, 'A', '恢复工作', 'resume', ?3, ?4)",
+        params![event_id, task_id, round, now],
     ).map_err(|e| e.to_string())?;
 
     // Close latest open pause
@@ -245,6 +267,7 @@ pub fn resume_task(
 pub fn reactivate_task(
     state: State<'_, DbState>,
     task_id: String,
+    mode: Option<String>,  // "archive_old" | "continue"
 ) -> Result<(), String> {
     let conn = state.personal.lock().unwrap();
     let now = chrono::Utc::now().to_rfc3339();
@@ -255,12 +278,31 @@ pub fn reactivate_task(
         params![now, task_id],
     ).map_err(|e| e.to_string())?;
 
-    // Insert STAR event noting reactivation
+    // Determine round
     let event_id = uuid::Uuid::new_v4().to_string();
+    let is_archive = mode.as_deref() == Some("archive_old");
+    let round = if is_archive {
+        conn.query_row(
+            "SELECT COALESCE(MAX(star_round), 0) + 1 FROM task_events WHERE task_id = ?1",
+            params![task_id], |r| r.get(0)
+        ).unwrap_or(1)
+    } else {
+        conn.query_row(
+            "SELECT COALESCE(MAX(star_round), 1) FROM task_events WHERE task_id = ?1",
+            params![task_id], |r| r.get(0)
+        ).unwrap_or(1)
+    };
+
+    let content = if is_archive {
+        format!("🔄 第{}轮开始（归档旧记录）", round)
+    } else {
+        "🔄 任务重新激活".into()
+    };
+
     conn.execute(
-        "INSERT INTO task_events (id, task_id, star_section, content, event_type, created_at)
-         VALUES (?1, ?2, 'A', ?3, 'note', ?4)",
-        params![event_id, task_id, "🔄 任务重新激活", now],
+        "INSERT INTO task_events (id, task_id, star_section, content, event_type, star_round, created_at)
+         VALUES (?1, ?2, 'A', ?3, 'note', ?4, ?5)",
+        params![event_id, task_id, content, round, now],
     ).map_err(|e| e.to_string())?;
 
     Ok(())

@@ -122,8 +122,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 重新激活已完成的任务
 (window as any).reactivateTask = async (taskId: string) => {
+  const archive = confirm('📦 归档旧STAR记录？\n\n"确定"=新STAR另起一轮\n"取消"=继续使用当前记录');
   try {
-    await invoke('reactivate_task', { taskId });
+    await invoke('reactivate_task', { taskId, mode: archive ? 'archive_old' : 'continue' });
     location.reload();
   } catch (e) {
     alert(`重新激活失败: ${e}`);
