@@ -222,26 +222,43 @@ export async function renderPersonal(container: HTMLElement): Promise<void> {
     taskMap = {};
     for (const t of tasks) { taskMap[t.id] = t; }
 
-    // ─── 精力柱状图 ─────────────────────────
+    // ─── 精力时间轴（可视化） ──────────
     const wl = document.getElementById('workload')!;
-    const maxPercent = Math.max(...workload.map(p => p.total_percent), 100);
-    let wlHtml = '<h3>⏱️ 精力占用</h3><div style="margin-top:10px">';
-    for (const p of workload) {
-      const color = p.level === 'error' ? '#ef4444' : p.level === 'warning' ? '#f59e0b' : '#22c55e';
-      const barWidth = Math.round((p.total_percent / maxPercent) * 100);
-      wlHtml += `
-        <div style="margin-bottom:7px">
-          <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b;margin-bottom:3px">
-            <span>${p.time.slice(11, 16)}</span>
-            <span style="color:${color};font-weight:700">${p.total_percent}%</span>
-          </div>
-          <div class="bar-bg">
-            <div class="bar-fill" style="width:${barWidth}%;background:${color}"></div>
-          </div>
-        </div>`;
+    if (workload.length === 0) {
+      wl.innerHTML = '<h3>⏱️ 精力占用</h3><p style="color:#94a3b8;font-size:14px;padding:12px 0">暂无任务，开始添加吧</p>';
+    } else {
+      const maxPercent = Math.max(...workload.map(p => p.total_percent), 100);
+      // 时间轴：在单条色带上连续显示各时间段
+      let tlBars = '<h3>⏱️ 精力时间轴</h3><div style="display:flex;height:36px;border-radius:6px;overflow:hidden;margin-top:8px">';
+      for (const p of workload) {
+        const pct = Math.round((p.total_percent / maxPercent) * 100);
+        const color = p.level === 'error' ? '#ef4444' : p.level === 'warning' ? '#f59e0b' : '#22c55e';
+        tlBars += `<div style="flex:${pct};background:${color};min-width:4px;position:relative" title="${p.time.slice(11,16)} ${p.total_percent}%"></div>`;
+      }
+      tlBars += '</div><div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-top:4px">';
+      tlBars += `<span>${workload[0]?.time.slice(11,16) || ''}</span>`;
+      tlBars += `<span>${workload[workload.length-1]?.time.slice(11,16) || ''}</span>`;
+      tlBars += '</div>';
+
+      // 详细柱状图
+      tlBars += '<div style="margin-top:12px">';
+      for (const p of workload) {
+        const color = p.level === 'error' ? '#ef4444' : p.level === 'warning' ? '#f59e0b' : '#22c55e';
+        const barWidth = Math.round((p.total_percent / maxPercent) * 100);
+        tlBars += `
+          <div style="margin-bottom:5px">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:#64748b">
+              <span>${p.time.slice(11, 16)}</span>
+              <span style="color:${color};font-weight:600">${p.total_percent}%</span>
+            </div>
+            <div class="bar-bg">
+              <div class="bar-fill" style="width:${barWidth}%;background:${color}"></div>
+            </div>
+          </div>`;
+      }
+      tlBars += '</div>';
+      wl.innerHTML = tlBars;
     }
-    if (workload.length === 0) wlHtml += '<p style="color:#94a3b8;font-size:14px;padding:12px 0">暂无任务，开始添加吧</p>';
-    wl.innerHTML = wlHtml;
 
     // ─── 任务列表 ────────────────────────────
     const tl = document.getElementById('tasks')!;

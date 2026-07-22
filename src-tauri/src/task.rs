@@ -274,9 +274,9 @@ pub fn get_workload_panel(
     Ok(result)
 }
 
-// ─── 8. 冲突报告（按时间片聚合）────────────────────────
-// 不再用两两比较，改为计算每个时间片的总精力占用。
-// 当总占用 > 100% 时视为冲突，显示所有参与任务。
+// ─── 8. 冲突报告（连续时间片聚合）────────────────────
+// 按时间片计算并发量，然后将相邻的冲突片合并为连续冲突段，
+// 避免因时间边界切得太碎而显示多条。
 #[tauri::command]
 pub fn get_conflict_report(state: State<'_, DbState>) -> Result<Vec<ConflictItem>, String> {
     let conn = state.personal.lock().unwrap();
@@ -294,7 +294,7 @@ pub fn get_conflict_report(state: State<'_, DbState>) -> Result<Vec<ConflictItem
     };
     drop(conn);
 
-    // 收集所有时间边界
+    // 1. 收集所有时间边界
     let mut boundaries: Vec<DateTime<Utc>> = Vec::new();
     for (_, s, _, e) in &rows {
         if let Ok(t) = parse_time(s) { boundaries.push(t); }
@@ -302,37 +302,53 @@ pub fn get_conflict_report(state: State<'_, DbState>) -> Result<Vec<ConflictItem
     }
     boundaries.sort();
     boundaries.dedup();
+    if boundaries.len() < 2 { return Ok(vec![]); }
 
-    // 按时间片计算并发量，只保留 >100% 的冲突片
-    let mut result = Vec::new();
+    // 2. 计算每个时间片，标记冲突片
+    struct Slice { total: i64, ids: Vec<String> }
+    let mut slices: Vec<Slice> = Vec::new();
     for win in boundaries.windows(2) {
-        let t0 = win[0];
-        let t1 = win[1];
-        let dur = (t1 - t0).num_minutes() as i64;
-        if dur < 1 { continue; }
-        let mut total: i64 = 0;
+        let t0 = win[0]; let t1 = win[1];
+        if (t1 - t0).num_minutes() < 1 { slices.push(Slice { total: 0, ids: vec![] }); continue; }
+        let mut total = 0i64;
         let mut ids: Vec<String> = Vec::new();
         for (id, s, ef, e) in &rows {
             if let (Ok(ss), Ok(ee)) = (parse_time(s), parse_time(e)) {
-                if ss < t1 && ee > t0 {
-                    total += ef;
-                    ids.push(id.clone());
-                }
+                if ss < t1 && ee > t0 { total += ef; ids.push(id.clone()); }
             }
         }
-        if total > 100 {
-            let sev = if total > 150 { "error".to_string() } else { "warning".to_string() };
-            result.push(ConflictItem {
-                time_range: format!("{}/{}", t0.to_rfc3339(), t1.to_rfc3339()),
-                duration_minutes: dur,
-                total_percent: total,
-                task_count: ids.len() as i64,
-                task_ids: ids,
-                severity: sev,
-            });
-        }
+        slices.push(Slice { total, ids });
     }
-    // 按 total_percent 降序排列
+
+    // 3. 合并相邻冲突片（total > 100）为连续段
+    let mut result: Vec<ConflictItem> = Vec::new();
+    let mut i = 0;
+    while i < slices.len() {
+        if slices[i].total <= 100 { i += 1; continue; }
+        // 找到连续冲突片
+        let mut j = i;
+        let mut max_total = slices[i].total;
+        let mut all_ids: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        while j < slices.len() && slices[j].total > 100 {
+            if slices[j].total > max_total { max_total = slices[j].total; }
+            for id in &slices[j].ids { all_ids.insert(id.clone()); }
+            j += 1;
+        }
+        let start_t = boundaries[i];
+        let end_t = boundaries[j]; // j 是第一个非冲突片的索引
+        let dur = (end_t - start_t).num_minutes() as i64;
+        let ids: Vec<String> = all_ids.into_iter().collect();
+        let sev = if max_total > 150 { "error".to_string() } else { "warning".to_string() };
+        result.push(ConflictItem {
+            time_range: format!("{}/{}", start_t.to_rfc3339(), end_t.to_rfc3339()),
+            duration_minutes: dur,
+            total_percent: max_total,
+            task_count: ids.len() as i64,
+            task_ids: ids,
+            severity: sev,
+        });
+        i = j;
+    }
     result.sort_by(|a, b| b.total_percent.cmp(&a.total_percent));
     Ok(result)
 }
