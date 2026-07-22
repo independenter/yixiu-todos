@@ -6,7 +6,6 @@
 use std::path::PathBuf;
 use std::thread;
 use std::sync::Mutex;
-use std::io::Read;
 use tiny_http::{Server, Response, Header};
 use serde_json::{json, Value};
 use rusqlite::Connection;
