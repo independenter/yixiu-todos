@@ -12,6 +12,7 @@ pub struct ProjectInput {
     pub priority: Option<i64>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub struct ProjectRow {
     pub id: String,
@@ -143,7 +144,7 @@ pub fn delete_project(
 ) -> Result<(), String> {
     let conn = state.conn.lock().unwrap();
     // 解除关联任务的 project_id
-    let _ = conn.execute("UPDATE employee_tasks SET project_id=NULL WHERE project_id=?1", params![id]);
+    conn.execute("UPDATE employee_tasks SET project_id=NULL WHERE project_id=?1", params![id]).map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM projects WHERE id=?1", params![id]).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -163,12 +164,15 @@ pub fn update_task_priority(
         "SELECT project_id FROM employee_tasks WHERE id=?1", params![task_id], |r| r.get(0)
     ).unwrap_or(None);
     if let Some(pid) = project_id {
-        let mut s = conn.prepare(
+        if let Ok(mut s) = conn.prepare(
             "SELECT id FROM employee_tasks WHERE project_id=?1 ORDER BY global_priority"
-        ).unwrap();
-        let ids: Vec<String> = s.query_map(params![pid], |r| r.get(0)).unwrap().filter_map(|r| r.ok()).collect();
-        for (i, tid) in ids.iter().enumerate() {
-            let _ = conn.execute("UPDATE employee_tasks SET project_priority=?1 WHERE id=?2", params![i as i64, tid]);
+        ) {
+            if let Ok(iter) = s.query_map(params![pid], |r| r.get(0)) {
+                let ids: Vec<String> = iter.filter_map(|r| r.ok()).collect();
+                for (i, tid) in ids.iter().enumerate() {
+                    let _ = conn.execute("UPDATE employee_tasks SET project_priority=?1 WHERE id=?2", params![i as i64, tid]);
+                }
+            }
         }
     }
     Ok(())
