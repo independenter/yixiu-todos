@@ -134,36 +134,105 @@
       }
     </style>
     <script>
-    // 浏览器环境（非 Tauri）时，mock Tauri API 以避免报错
+    // 浏览器模式：内存数据库 + Mock Tauri API
     if (!window.__TAURI_INTERNALS__) {
+      const DB = (() => {
+        let tasks = [];
+        let employees = [];
+        let forceRules = [];
+        let taskEvents = [];
+        let nextId = 1;
+        const uid = () => 'id-' + String(nextId++).padStart(4, '0');
+        const now = () => new Date().toISOString();
+        return {
+          // ── Tasks ──
+          createTask(input) {
+            const t = { ...input, id: uid(), status: 'pending', created_at: now(), updated_at: now() };
+            tasks.push(t); return t.id;
+          },
+          listTasks() { return [...tasks]; },
+          updateTask(id, patch) {
+            const t = tasks.find(x => x.id === id);
+            if (t) Object.assign(t, patch, { updated_at: now() });
+          },
+          deleteTask(id) { tasks = tasks.filter(x => x.id !== id); },
+          completeTask(id) {
+            const t = tasks.find(x => x.id === id);
+            if (t) { t.status = 'done'; t.updated_at = now(); }
+          },
+          // ── Employees ──
+          createEmployee(input) {
+            const e = { ...input, id: uid(), status: 'active', created_at: now() };
+            employees.push(e); return e.id;
+          },
+          listEmployees() { return [...employees]; },
+          // ── Force Rules ──
+          listForceRules() { return [...forceRules]; },
+          setForceRule(input) {
+            const existing = forceRules.find(r => r.app_name === input.appName || r.app_name === input.app_name);
+            if (existing) { existing.remind_interval_sec = input.remindIntervalSec || input.remind_interval_sec; return existing.id; }
+            const r = { id: forceRules.length + 1, app_name: input.appName || input.app_name, enabled: true, remind_interval_sec: input.remindIntervalSec || input.remind_interval_sec || 300, created_at: now() };
+            forceRules.push(r); return r.id;
+          },
+          clearForceRule(appName) { forceRules = forceRules.filter(r => r.app_name !== appName); },
+          // ── STAR Events ──
+          getStarEvents(taskId) { return taskEvents.filter(e => e.task_id === taskId); },
+          addStarEvent(input) {
+            const ev = { ...input, id: uid(), created_at: now() };
+            taskEvents.push(ev); return ev.id;
+          },
+          getTaskPauseStats(taskId) {
+            const pauses = taskEvents.filter(e => e.task_id === taskId && e.event_type === 'pause');
+            return { pause_count: pauses.length, total_pause_seconds: pauses.length * 1800, is_paused_now: false };
+          },
+          // ── Helpers ──
+          getWorkload() {
+            const active = tasks.filter(t => t.status === 'pending' || t.status === 'active');
+            if (!active.length) return [];
+            return active.map(t => ({
+              time: t.start_time || now(),
+              total_percent: t.effort_percent || 50,
+              level: (t.effort_percent || 50) > 100 ? 'error' : (t.effort_percent || 50) > 80 ? 'warning' : 'ok',
+              task_ids: [t.id],
+            }));
+          },
+          getEmployeeWorkload(empId) {
+            const empTasks = []; // simplified
+            return { employee_id: empId, name: employees.find(e => e.id === empId)?.name || '', total_percent: 0, active_tasks: 0, avg_progress: 0, alerts: [] };
+          },
+          getConflictReport() { return []; },
+        };
+      })();
+
       window.__TAURI_INTERNALS__ = {
-        invoke: (cmd) => {
-          const mocks = {
-            list_tasks: [],
-            get_workload_panel: [],
-            get_conflict_report: [],
-            list_employees: [],
-            get_employee_workload: { total_percent: 0, active_tasks: 0, avg_progress: 0, alerts: [] },
-            get_star_events: [],
-            get_task_pause_stats: { pause_count: 0, total_pause_seconds: 0, is_paused_now: false },
-            create_task: null,
-            update_task: null,
-            delete_task: null,
-            complete_task: null,
-            list_force_rules: [],
-            set_force_rule: null,
-            clear_force_rule: null,
-            create_employee: null,
-            assign_task_to_employee: null,
-            update_employee_progress: null,
-            send_notification: null,
-            export_time_report: '',
-            vacuum_db: null,
-          };
-          return Promise.resolve(mocks[cmd] !== undefined ? mocks[cmd] : null);
+        invoke: (cmd, args) => {
+          const a = args || {};
+          const i = a.input || a;
+          switch (cmd) {
+            case 'list_tasks': return Promise.resolve(DB.listTasks());
+            case 'create_task': return Promise.resolve(DB.createTask(i));
+            case 'update_task': return Promise.resolve(DB.updateTask(i.id || a.id, i.patch || a.patch));
+            case 'delete_task': return Promise.resolve(DB.deleteTask(i.id || a.id));
+            case 'complete_task': return Promise.resolve(DB.completeTask(i.id || a.id));
+            case 'get_workload_panel': return Promise.resolve(DB.getWorkload());
+            case 'get_conflict_report': return Promise.resolve(DB.getConflictReport());
+            case 'list_employees': return Promise.resolve(DB.listEmployees());
+            case 'create_employee': return Promise.resolve(DB.createEmployee(i));
+            case 'get_employee_workload': return Promise.resolve(DB.getEmployeeWorkload(i.employeeId || a.employeeId || a.employee_id));
+            case 'list_force_rules': return Promise.resolve(DB.listForceRules());
+            case 'set_force_rule': return Promise.resolve(DB.setForceRule(i));
+            case 'clear_force_rule': return Promise.resolve(DB.clearForceRule(i.appName || a.appName || i.app_name || a.app_name));
+            case 'get_star_events': return Promise.resolve(DB.getStarEvents(i.taskId || a.taskId || i.task_id || a.task_id));
+            case 'add_star_event': return Promise.resolve(DB.addStarEvent(i));
+            case 'get_task_pause_stats': return Promise.resolve(DB.getTaskPauseStats(i.taskId || a.taskId || i.task_id || a.task_id));
+            case 'send_notification': return Promise.resolve(null);
+            case 'export_time_report': return Promise.resolve('[]');
+            case 'vacuum_db': return Promise.resolve(null);
+            default: return Promise.resolve(null);
+          }
         },
       };
-      console.log('🖥️ 浏览器模式 - Tauri API 已 Mock');
+      console.log('🖥️ 浏览器模式 - 内存数据库已启动 ✓');
     }
     </script>
   </head>
