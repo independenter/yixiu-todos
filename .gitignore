@@ -1,0 +1,33 @@
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
+
+# Tauri
+src-tauri/target/
+src-tauri/Cargo.lock.bak
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 本地数据（运行时生成）
+*.db
+*.db-wal
+*.db-shm
+data/
+
+# 日志
+*.log
+.claude/

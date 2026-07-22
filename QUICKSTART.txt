@@ -1,0 +1,97 @@
+=====================================================
+ TodoApp — 交付说明（解压后先读我）
+=====================================================
+
+项目名：TodoApp
+定位：个人/团队待办 + 精力占用面板 + 时间冲突告警
+技术栈：Rust + Tauri 2（跨平台桌面）+ SQLite + Vanilla TS
+
+─────────────────────────────────────────────────────
+ 目录结构
+─────────────────────────────────────────────────────
+todoapp/
+├── Cargo.toml              # workspace 根
+├── package.json             # 前端依赖
+├── vite.config.ts
+├── tsconfig.json
+├── index.html
+├── .gitignore
+├── README.md               # 项目说明（功能/架构/快速开始）
+├── AGENT.md                # AI/Agent 协作规范
+├── QUICKSTART.txt          # 本文件
+├── src/
+│   └── main.ts            # 前端入口（可换 React/Vue）
+├── src-tauri/             # Rust 后端
+│   ├── Cargo.toml
+│   ├── tauri.conf.json
+│   ├── build.rs
+│   ├── icons/README.txt
+│   └── src/
+│       ├── main.rs         # 桌面入口
+│       ├── lib.rs         # Tauri 入口 + 命令注册
+│       ├── db.rs          # SQLite 建表 + 连接
+│       ├── task.rs        # 个人任务 CRUD + 精力面板
+│       ├── conflict.rs    # 时间冲突检测算法
+│       ├── scheduler.rs   # 后台 30s 调度器
+│       ├── reminder.rs    # 桌面通知 + 定时提醒
+│       ├── employee.rs    # 员工管理 + 任务分配
+│       ├── rules.rs       # 强制录入规则
+│       ├── tray.rs        # 系统托盘
+│       └── error.rs       # 统一错误
+└── docs/
+    ├── DEV_PLAN.md        # 分阶段开发规划（0.1→1.x）
+    └── ARCHITECTURE.md    # 详细架构图 + 算法说明
+
+─────────────────────────────────────────────────────
+ 三步跑起来
+─────────────────────────────────────────────────────
+1) 装依赖（一次性）
+   - Rust：  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   - Node：  https://nodejs.org （≥18）
+   - Linux 额外：sudo apt install libwebkit2gtk-4.1-dev build-essential
+
+2) 安装前端依赖
+   cd todoapp
+   npm install
+
+3) 开发模式（热重载，改前端/后端都会自动重编）
+   npm run tauri dev
+
+   首次会编译 Rust（30s-2min），之后增量很快。
+   窗口打开后 DevTools 按 F12。
+
+─────────────────────────────────────────────────────
+ 核心设计速览
+─────────────────────────────────────────────────────
+• 精力占用 = 同时段所有任务 effort_percent 之和
+  ≤100% → 正常（绿）   50%×2 → 黄（切换代价提醒）
+  >100% → 红（过载，必报错）
+
+• 冲突检测：两两比较未完成任务时间区间，写入 task_overlaps
+  前端调 get_conflict_report 拿排序后的冲突列表
+
+• 强制规则：在 rules.rs 设置"打开某软件前必须录任务"
+  命中后每隔 N 分钟弹一次提醒，事件留痕 force_events
+
+• 员工面板：独立 employee_tasks 表，按员工算占用/进度/告警
+
+─────────────────────────────────────────────────────
+ 后续开发建议
+─────────────────────────────────────────────────────
+- 读 docs/DEV_PLAN.md 看阶段 0→1.x 的验收标准
+- 读 AGENT.md 了解编码约定（Agent/协作者必读）
+- 前端当前是 Vanilla TS，可零成本迁移 React/Vue
+  （Vite 已配好，把 src/main.ts 换成框架入口即可）
+- 图标：执行  cargo tauri icon path/to/your.png
+  生成全套图标放到 src-tauri/icons/
+
+─────────────────────────────────────────────────────
+ 数据库位置（运行时自动创建）
+─────────────────────────────────────────────────────
+Linux   : ~/.config/com.todoapp.dev/todoapp.db
+Windows : %APPDATA%\com.todoapp.dev\todoapp.db
+macOS   : ~/Library/Application Support/com.todoapp.dev/todoapp.db
+
+─────────────────────────────────────────────────────
+ License: MIT OR Apache-2.0
+=====================================================
