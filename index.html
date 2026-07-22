@@ -124,6 +124,26 @@
         .nav-brand { margin-right: 12px; font-size: 14px; }
       }
     </style>
+    <script>
+    // 浏览器环境（非 Tauri）时，mock Tauri API 以避免报错
+    if (!window.__TAURI_INTERNALS__) {
+      window.__TAURI_INTERNALS__ = {
+        invoke: (cmd) => {
+          const mocks = {
+            list_tasks: [],
+            get_workload_panel: [],
+            get_conflict_report: [],
+            list_employees: [],
+            get_employee_workload: { total_percent: 0, active_tasks: 0, avg_progress: 0, alerts: [] },
+            get_star_events: [],
+            get_task_pause_stats: { pause_count: 0, total_pause_seconds: 0, is_paused_now: false },
+          };
+          return Promise.resolve(mocks[cmd] !== undefined ? mocks[cmd] : null);
+        },
+      };
+      console.log('🖥️ 浏览器模式 - Tauri API 已 Mock');
+    }
+    </script>
   </head>
   <body>
     <div class="app-shell">
