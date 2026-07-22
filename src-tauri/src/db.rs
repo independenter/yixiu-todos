@@ -133,6 +133,37 @@ fn create_schema(conn: &Connection) -> SqlResult<()> {
         "#,
     )?;
 
+    // ─── STAR 任务事件表 ────────────────────────────────────
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS task_events (
+            id            TEXT PRIMARY KEY,
+            task_id       TEXT NOT NULL,
+            star_section  TEXT NOT NULL CHECK(star_section IN ('S','T','A','R')),
+            content       TEXT NOT NULL,
+            event_type    TEXT NOT NULL DEFAULT 'note'
+                          CHECK(event_type IN ('note','blocker','pause','resume')),
+            created_at    TEXT NOT NULL,
+            FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id);
+        CREATE INDEX IF NOT EXISTS idx_task_events_section ON task_events(task_id, star_section);
+
+        -- 暂停记录
+        CREATE TABLE IF NOT EXISTS task_pauses (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id   TEXT NOT NULL,
+            paused_at TEXT NOT NULL,
+            resumed_at TEXT,
+            reason    TEXT,
+            FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_task_pauses_task ON task_pauses(task_id);
+        "#,
+    )?;
+
     Ok(())
 }
 
