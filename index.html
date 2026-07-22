@@ -181,6 +181,8 @@
               case 'get_task_pause_stats': return {pause_count:0,total_pause_seconds:0,is_paused_now:false};
               case 'pause_task':{const t=tasks.find(x=>x.id===(i.task_id||a.taskId));if(t)t.status='paused';return null;}
               case 'resume_task':{const t=tasks.find(x=>x.id===(i.task_id||a.taskId));if(t)t.status='active';return null;}
+	              case 'reactivate_task':{const t=tasks.find(x=>x.id===(i.task_id||a.taskId));if(t){t.status='active';t.updated_at=now();}return null;}
+              case 'reactivate_task':{const t=tasks.find(x=>x.id===(i.task_id||a.taskId));if(t){t.status='active';t.updated_at=now();}return null;}
               case 'assign_task_to_employee': { empTasks.push({...i,id:uid(),progress:0,status:'pending',created_at:now(),updated_at:now()}); return null; }
               default: return null;
             }
@@ -195,6 +197,7 @@
             list_tasks: ['GET','/api/tasks'], create_task: ['POST','/api/tasks'],
             update_task: ['PUT','/api/tasks/'+(args?.id||'')], delete_task: ['DELETE','/api/tasks/'+(args?.id||'')],
             complete_task: ['PUT','/api/tasks/'+(args?.id||'')+'/complete'],
+            reactivate_task: ['POST','/api/tasks/'+(args?.taskId||'')+'/reactivate'],
             get_workload_panel: ['GET','/api/workload'], get_conflict_report: ['GET','/api/conflicts'],
             list_employees: ['GET','/api/employees'], create_employee: ['POST','/api/employees'],
             get_employee_workload: ['GET','/api/employees/'+(args?.employeeId||'')+'/workload'],
@@ -217,6 +220,7 @@
             if (cmd === 'add_star_event') body = args?.input || args;
             if (cmd === 'pause_task') body = args;
             if (cmd === 'resume_task') body = args;
+            if (cmd === 'reactivate_task') body = args;
             // 转换 camelCase → snake_case 用于 HTTP API
             const toSnakeApi = (o) => {
               if (!o||typeof o!=='object') return o;

@@ -97,6 +97,7 @@ pub fn run() {
             task_star::delete_star_event,
             task_star::pause_task,
             task_star::resume_task,
+            task_star::reactivate_task,
             task_star::get_task_pause_stats,
 
             // 数据库维护

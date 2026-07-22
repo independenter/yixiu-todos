@@ -34,7 +34,10 @@ export async function renderTaskDetail(container: HTMLElement, taskId: string): 
             <h2 style="font-size:18px;font-weight:700">${task.title}</h2>
             <p style="color:#64748b;margin-top:4px;font-size:14px">${task.description || '暂无描述'}</p>
           </div>
-          <span class="badge ${STATUS_BADGE[task.status] || 'badge-pending'}">${STATUS_LABEL[task.status] || task.status}</span>
+          <div style="display:flex;align-items:center">
+            <span class="badge ${STATUS_BADGE[task.status] || 'badge-pending'}">${STATUS_LABEL[task.status] || task.status}</span>
+            ${task.status === 'done' ? `<button onclick="reactivateTask('${task.id}')" style="margin-left:8px;padding:4px 10px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;cursor:pointer;font-size:13px">🔄 重新激活</button>` : ''}
+          </div>
         </div>
         <div style="display:flex;gap:16px;margin-top:10px;font-size:13px;color:#64748b">
           <span>优先级: ${'⭐'.repeat(Math.max(0, 5 - task.priority))}${'☆'.repeat(Math.min(4, task.priority - 1))}</span>

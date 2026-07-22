@@ -280,7 +280,10 @@ function renderArchiveModal(done: Task[]): void {
       ${sorted.length === 0 ? '<p style="color:#94a3b8">暂无已完成任务</p>' :
         sorted.map(t => `
           <div onclick="location.hash='#task/${t.id}';document.getElementById('archive-overlay')?.remove()" style="padding:8px 10px;margin:4px 0;background:#f8fafc;border-radius:6px;cursor:pointer">
-            <div style="font-weight:500;font-size:14px">${escHtml(t.title)}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:500;font-size:14px">${escHtml(t.title)}</span>
+              <button onclick="event.stopPropagation();reactivateTask('${t.id}')" style="padding:2px 8px;font-size:12px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:4px;cursor:pointer">🔄 重新激活</button>
+            </div>
             <div style="font-size:12px;color:#94a3b8">完成时间: ${t.updated_at.slice(0,16)}</div>
           </div>
         `).join('')}

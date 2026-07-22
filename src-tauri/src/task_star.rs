@@ -242,6 +242,31 @@ pub fn resume_task(
 }
 
 #[tauri::command]
+pub fn reactivate_task(
+    state: State<'_, DbState>,
+    task_id: String,
+) -> Result<(), String> {
+    let conn = state.personal.lock().unwrap();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // Update task status back to active
+    conn.execute(
+        "UPDATE tasks SET status = 'active', updated_at = ?1 WHERE id = ?2",
+        params![now, task_id],
+    ).map_err(|e| e.to_string())?;
+
+    // Insert STAR event noting reactivation
+    let event_id = uuid::Uuid::new_v4().to_string();
+    conn.execute(
+        "INSERT INTO task_events (id, task_id, star_section, content, event_type, created_at)
+         VALUES (?1, ?2, 'A', ?3, 'note', ?4)",
+        params![event_id, task_id, "🔄 任务重新激活", now],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn get_task_pause_stats(
     state: State<'_, DbState>,
     task_id: String,

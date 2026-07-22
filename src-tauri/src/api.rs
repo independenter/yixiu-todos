@@ -195,6 +195,20 @@ fn handle(method: &str, url: &str, body: &Value, db_path: &PathBuf) -> Result<St
         return Ok("null".into());
     }
 
+    // ─── Reactivate ───────────────────────────
+    if method == "POST" && url.contains("/reactivate") {
+        let task_id = url.strip_prefix("/api/tasks/").and_then(|s| s.strip_suffix("/reactivate")).unwrap_or("");
+        let c = conn.lock().unwrap();
+        let now = chrono::Utc::now().to_rfc3339();
+        if !task_id.is_empty() {
+            c.execute("UPDATE tasks SET status='active',updated_at=?1 WHERE id=?2", rusqlite::params![now, task_id]).unwrap();
+            let eid = uuid::Uuid::new_v4().to_string();
+            c.execute("INSERT INTO task_events (id,task_id,star_section,content,event_type,created_at) VALUES (?1,?2,'A',?3,'note',?4)",
+                rusqlite::params![eid, task_id, "🔄 任务重新激活", now]).unwrap();
+        }
+        return Ok("null".into());
+    }
+
     if method == "GET" && url.ends_with("/pause-stats") {
         let task_id = url.strip_prefix("/api/tasks/").and_then(|s| s.strip_suffix("/pause-stats")).unwrap_or("");
         let c = conn.lock().unwrap();

@@ -104,6 +104,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 };
 
+// 重新激活已完成的任务
+(window as any).reactivateTask = async (taskId: string) => {
+  try {
+    await invoke('reactivate_task', { taskId });
+    location.reload();
+  } catch (e) {
+    alert(`重新激活失败: ${e}`);
+  }
+};
+
 // ─── 强制规则管理 ───────────────────────────────
 (window as any).addForceRule = async () => {
   const app = (document.getElementById('fr-app') as HTMLInputElement)?.value?.trim();
