@@ -11,6 +11,7 @@ mod scheduler;
 mod reminder;
 mod tray;
 mod employee;
+mod project;
 mod rules;
 mod task_star;
 mod error;
@@ -77,6 +78,14 @@ pub fn run() {
             employee::assign_task_to_employee,
             employee::get_employee_workload,
             employee::update_employee_progress,
+
+            // 项目管理
+            project::create_project,
+            project::list_projects,
+            project::update_project,
+            project::delete_project,
+            project::list_project_tasks,
+            project::update_task_priority,
 
             // 规则
             rules::check_force_rule,
