@@ -88,10 +88,18 @@ fn handle(method: &str, url: &str, body: &Value, db_path: &PathBuf) -> Result<St
     }
 
     // ─── Workload ──────────────────────────────
-    if method == "GET" && url == "/api/workload" {
+    if method == "GET" && url.starts_with("/api/workload") {
+        let (_, qs) = url.split_once('?').unwrap_or((url, ""));
+        let qfrom = qs.split('&').find_map(|p| p.strip_prefix("from=")).map(|v| v.to_string());
+        let qto = qs.split('&').find_map(|p| p.strip_prefix("to=")).map(|v| v.to_string());
         let c = conn.lock().unwrap();
-        let mut s = c.prepare("SELECT start_time,end_time,effort_percent FROM tasks WHERE status IN ('pending','active')").unwrap();
-        let rows: Vec<(String,String,i64)> = s.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap().filter_map(|r| r.ok()).collect();
+        let mut sql = "SELECT start_time,end_time,effort_percent FROM tasks WHERE status IN ('pending','active')".to_string();
+        let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        if let Some(f) = &qfrom { sql.push_str(" AND end_time >= ?"); params.push(Box::new(f.to_string())); }
+        if let Some(t) = &qto   { sql.push_str(" AND start_time <= ?"); params.push(Box::new(t.to_string())); }
+        let refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|b| b.as_ref()).collect();
+        let mut s = c.prepare(&sql).unwrap();
+        let rows: Vec<(String,String,i64)> = s.query_map(refs.as_slice(), |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap().filter_map(|r| r.ok()).collect();
         drop(s);
         let points = compute_workload(&rows);
         return serde_json::to_string(&points).map_err(|e| e.to_string());

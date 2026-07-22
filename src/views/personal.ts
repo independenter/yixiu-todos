@@ -244,14 +244,35 @@ function bindTaskActions(tl: HTMLElement): void {
   });
 }
 
+// ─── 时间范围选择 ──────────────────────────────
+let workloadRange = 'week'; // '3day' | 'week' | 'month' | 'quarter' | 'all'
+
+function timeRangeLabel(r: string): string {
+  return { '3day': '近3天', 'week': '本周', 'month': '本月', 'quarter': '本季度', 'all': '全部' }[r] || r;
+}
+
+function getRangeDates(range: string): { from: Date; to: Date } {
+  const now = new Date();
+  let from = new Date(now);
+  switch (range) {
+    case '3day': from.setDate(now.getDate() - 3); break;
+    case 'week': from.setDate(now.getDate() - now.getDay()); from.setHours(0,0,0,0); break;
+    case 'month': from = new Date(now.getFullYear(), now.getMonth(), 1); break;
+    case 'quarter': from = new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3, 1); break;
+    case 'all': from = new Date(0); break;
+  }
+  return { from, to: now };
+}
+
 export async function renderPersonal(container: HTMLElement): Promise<void> {
   currentContainer = container;
-  container.innerHTML = '<h2 style="font-size:20px;font-weight:700;margin-bottom:16px">📋 个人看板</h2><div id="workload" class="card"></div><div id="tasks" class="card"></div><div id="conflicts" class="card"></div>';
+  const range = getRangeDates(workloadRange);
+  container.innerHTML = '<h2 style="font-size:20px;font-weight:700;margin-bottom:16px">📋 个人看板</h2><div id="overview" class="card"></div><div id="workload" class="card"></div><div id="tasks" class="card"></div><div id="conflicts" class="card"></div>';
 
   try {
     const [tasks, workload, conflicts] = await Promise.all([
       invoke<Task[]>('list_tasks', { status: null, category: null, from: null, to: null }),
-      invoke<WorkloadPoint[]>('get_workload_panel', { from: null, to: null }),
+      invoke<WorkloadPoint[]>('get_workload_panel', { from: range.from.toISOString(), to: range.to.toISOString() }),
       invoke<ConflictItem[]>('get_conflict_report'),
     ]);
 
@@ -259,14 +280,53 @@ export async function renderPersonal(container: HTMLElement): Promise<void> {
     taskMap = {};
     for (const t of tasks) { taskMap[t.id] = t; }
 
+    // ─── 任务概览 ──────────────────────────
+    const ov = document.getElementById('overview')!;
+    const total = tasks.length;
+    const done = tasks.filter(t => t.status === 'done').length;
+    const active = tasks.filter(t => t.status === 'active' || t.status === 'pending').length;
+    const paused = tasks.filter(t => t.status === 'paused').length;
+    const rate = total > 0 ? Math.round(done / total * 100) : 0;
+    ov.innerHTML = `
+      <h3>📊 任务概览</h3>
+      <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:80px;text-align:center;padding:12px;background:#f0fdf4;border-radius:8px">
+          <div style="font-size:24px;font-weight:700;color:#16a34a">${done}</div>
+          <div style="font-size:12px;color:#64748b">已完成</div>
+        </div>
+        <div style="flex:1;min-width:80px;text-align:center;padding:12px;background:#eff6ff;border-radius:8px">
+          <div style="font-size:24px;font-weight:700;color:#2563eb">${active}</div>
+          <div style="font-size:12px;color:#64748b">进行中</div>
+        </div>
+        <div style="flex:1;min-width:80px;text-align:center;padding:12px;background:#fef3c7;border-radius:8px">
+          <div style="font-size:24px;font-weight:700;color:#d97706">${paused}</div>
+          <div style="font-size:12px;color:#64748b">已暂停</div>
+        </div>
+        <div style="flex:1;min-width:80px;text-align:center;padding:12px;background:#f8fafc;border-radius:8px">
+          <div style="font-size:24px;font-weight:700;color:#334155">${rate}%</div>
+          <div style="font-size:12px;color:#64748b">完成率</div>
+        </div>
+      </div>`;
+
     // ─── 精力时间轴（可视化） ──────────
     const wl = document.getElementById('workload')!;
+    const ranges = ['3day','week','month','quarter','all'];
+    let wlHead = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">';
+    wlHead += '<h3 style="margin:0">⏱️ 精力占用</h3>';
+    wlHead += '<div style="display:flex;gap:4px">';
+    for (const r of ranges) {
+      const active = r === workloadRange ? ' style="background:#3b82f6;color:#fff"' : ' style="background:#f1f5f9;color:#64748b"';
+      wlHead += `<button onclick="setRange('${r}')"${active} class="range-btn">${timeRangeLabel(r)}</button>`;
+    }
+    wlHead += '</div></div>';
+    ((window as any).setRange) = (r: string) => { workloadRange = r; if (currentContainer) renderPersonal(currentContainer); };
+
     if (workload.length === 0) {
-      wl.innerHTML = '<h3>⏱️ 精力占用</h3><p style="color:#94a3b8;font-size:14px;padding:12px 0">暂无任务，开始添加吧</p>';
+      wl.innerHTML = wlHead + '<p style="color:#94a3b8;font-size:14px;padding:12px 0">暂无任务，开始添加吧</p>';
     } else {
       const maxPercent = Math.max(...workload.map(p => p.total_percent), 100);
       // 时间轴：在单条色带上连续显示各时间段
-      let tlBars = '<h3>⏱️ 精力时间轴</h3><div style="display:flex;height:36px;border-radius:6px;overflow:hidden;margin-top:8px">';
+      let tlBars = wlHead + '<div style="display:flex;height:36px;border-radius:6px;overflow:hidden;margin-top:8px">';
       for (const p of workload) {
         const pct = Math.round((p.total_percent / maxPercent) * 100);
         const color = p.level === 'error' ? '#ef4444' : p.level === 'warning' ? '#f59e0b' : '#22c55e';

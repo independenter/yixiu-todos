@@ -222,17 +222,21 @@ pub fn postpone_task(
 #[tauri::command]
 pub fn get_workload_panel(
     state: State<'_, DbState>,
-    _from: Option<String>,
-    _to: Option<String>,
+    from: Option<String>,
+    to: Option<String>,
 ) -> Result<Vec<WorkloadPoint>, String> {
     let conn = state.personal.lock().unwrap();
     let rows: Vec<(String, String, i64)> = {
-        let mut s = conn
-            .prepare("SELECT start_time, end_time, effort_percent FROM tasks WHERE status IN ('pending','active')")            .map_err(|e| e.to_string())?;
-        let mut out = Vec::new();
-        let iter = s.query_map([], |r| Ok((r.get::<_,String>(0)?, r.get::<_,String>(1)?, r.get::<_,i64>(2)?)))
+        let mut sql = "SELECT start_time, end_time, effort_percent FROM tasks WHERE status IN ('pending','active')".to_string();
+        let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        if let Some(f) = &from { sql.push_str(" AND end_time >= ?"); params.push(Box::new(f.clone())); }
+        if let Some(t) = &to   { sql.push_str(" AND start_time <= ?"); params.push(Box::new(t.clone())); }
+        let mut s = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|b| b.as_ref()).collect();
+        let out: Vec<(String, String, i64)> = s.query_map(refs.as_slice(), |r| Ok((r.get::<_,String>(0)?, r.get::<_,String>(1)?, r.get::<_,i64>(2)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
-        for r in iter { out.push(r.map_err(|e| e.to_string())?); }
         out
     };
     drop(conn);
