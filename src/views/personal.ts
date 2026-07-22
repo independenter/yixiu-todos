@@ -255,17 +255,13 @@ function bindTaskActions(tl: HTMLElement): void {
   });
 }
 
-// ─── 归档视图 ──────────────────────────────
+// ─── 归档视图（含多选 + 批量删除/激活）────────
 function renderArchiveModal(done: Task[]): void {
   let sorted = [...done];
   const sortMode = archiveSortMode;
-  if (sortMode === 'updated_at') {
-    sorted.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-  } else if (sortMode === 'title') {
-    sorted.sort((a, b) => a.title.localeCompare(b.title));
-  } else if (sortMode === 'created_at') {
-    sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
-  }
+  if (sortMode === 'updated_at') sorted.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  else if (sortMode === 'title') sorted.sort((a, b) => a.title.localeCompare(b.title));
+  else if (sortMode === 'created_at') sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   const sortOpts = [
     { key: 'updated_at', label: '📅 按完成时间' },
@@ -273,34 +269,84 @@ function renderArchiveModal(done: Task[]): void {
     { key: 'created_at', label: '🕐 按创建时间' },
   ];
 
+  let selected = new Set<string>();
+
   const overlay = document.createElement('div');
   overlay.id = 'archive-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;display:flex;align-items:center;justify-content:center';
   overlay.innerHTML = `
-    <div style="background:#fff;border-radius:12px;padding:20px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto">
+    <div style="background:#fff;border-radius:12px;padding:20px;max-width:540px;width:90%;max-height:80vh;overflow-y:auto">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h3 style="margin:0">📁 归档 (${done.length})</h3>
         <span onclick="document.getElementById('archive-overlay')?.remove()" style="cursor:pointer;font-size:20px;opacity:0.5">✕</span>
       </div>
-      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
-        ${sortOpts.map(o => `
-          <span onclick="document.getElementById('archive-overlay')?.remove();showDoneTasks('${o.key}')" style="cursor:pointer;padding:4px 10px;border-radius:5px;font-size:12px;${o.key === sortMode ? 'background:#3b82f6;color:#fff' : 'background:#f1f5f9;color:#64748b'}">${o.label}</span>
-        `).join('')}
+      <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+        ${sortOpts.map(o => `<span onclick="document.getElementById('archive-overlay')?.remove();showDoneTasks('${o.key}')" style="cursor:pointer;padding:4px 10px;border-radius:5px;font-size:12px;${o.key===sortMode?'background:#3b82f6;color:#fff':'background:#f1f5f9;color:#64748b'}">${o.label}</span>`).join('')}
       </div>
+      <div id="archive-batch-bar" style="display:flex;gap:6px;margin-bottom:8px;min-height:30px;align-items:center">
+        <label style="font-size:13px;cursor:pointer"><input type="checkbox" id="archive-select-all"> 全选</label>
+        <span id="archive-batch-actions" style="display:none;gap:6px;margin-left:8px">
+          <button onclick="batchArchiveActivate()" style="padding:4px 10px;font-size:12px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:5px;cursor:pointer">🔄 批量激活</button>
+          <button onclick="batchArchiveDelete()" style="padding:4px 10px;font-size:12px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:5px;cursor:pointer">🗑️ 彻底删除</button>
+        </span>
+      </div>
+      <div id="archive-list">
       ${sorted.length === 0 ? '<p style="color:#94a3b8">暂无已完成任务</p>' :
         sorted.map(t => `
-          <div onclick="location.hash='#task/${t.id}';document.getElementById('archive-overlay')?.remove()" style="padding:8px 10px;margin:4px 0;background:#f8fafc;border-radius:6px;cursor:pointer">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <span style="font-weight:500;font-size:14px">${escHtml(t.title)}</span>
-              <button onclick="event.stopPropagation();reactivateTask('${t.id}')" style="padding:2px 8px;font-size:12px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:4px;cursor:pointer">🔄 重新激活</button>
+          <div class="archive-item" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin:4px 0;background:#f8fafc;border-radius:6px">
+            <input type="checkbox" class="archive-cb" value="${t.id}" style="cursor:pointer">
+            <div style="flex:1;min-width:0;cursor:pointer" onclick="location.hash='#task/${t.id}';document.getElementById('archive-overlay')?.remove()">
+              <div style="font-weight:500;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(t.title)}</div>
+              <div style="font-size:12px;color:#94a3b8">完成: ${t.updated_at.slice(0,16)}</div>
             </div>
-            <div style="font-size:12px;color:#94a3b8">完成时间: ${t.updated_at.slice(0,16)}</div>
+            <button onclick="event.stopPropagation();reactivateTask('${t.id}')" style="padding:2px 8px;font-size:12px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:4px;cursor:pointer;white-space:nowrap">🔄</button>
           </div>
         `).join('')}
+      </div>
     </div>`;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  // 全选/取消全选
+  const selectAll = document.getElementById('archive-select-all') as HTMLInputElement;
+  const batchActions = document.getElementById('archive-batch-actions')!;
+  selectAll?.addEventListener('change', () => {
+    document.querySelectorAll('.archive-cb').forEach(cb => (cb as HTMLInputElement).checked = selectAll.checked);
+    updateBatchBar();
+  });
+
+  // 单选变化时更新批量操作栏
+  document.querySelectorAll('.archive-cb').forEach(cb => {
+    cb.addEventListener('change', updateBatchBar);
+  });
+
+  function updateBatchBar() {
+    const checked = document.querySelectorAll('.archive-cb:checked').length;
+    batchActions.style.display = checked > 0 ? 'inline-flex' : 'none';
+  }
 }
+
+// 批量激活
+(window as any).batchArchiveActivate = async () => {
+  const ids = [...document.querySelectorAll('.archive-cb:checked')].map(cb => (cb as HTMLInputElement).value);
+  if (!ids.length) return;
+  if (!confirm(`批量激活 ${ids.length} 个任务？`)) return;
+  for (const id of ids) {
+    try { await invoke('reactivate_task', { taskId: id }); } catch {}
+  }
+  location.reload();
+};
+
+// 批量删除
+(window as any).batchArchiveDelete = async () => {
+  const ids = [...document.querySelectorAll('.archive-cb:checked')].map(cb => (cb as HTMLInputElement).value);
+  if (!ids.length) return;
+  if (!confirm(`⚠️ 确定彻底删除 ${ids.length} 个任务？此操作不可撤销！`)) return;
+  for (const id of ids) {
+    try { await invoke('delete_task', { id }); } catch {}
+  }
+  location.reload();
+};
 
 let archiveSortMode = 'created_at';
 
