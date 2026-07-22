@@ -154,6 +154,21 @@ fn handle(method: &str, url: &str, body: &Value, db_path: &PathBuf) -> Result<St
         return Ok("null".into());
     }
 
+    // ─── Employee Task Assignment ─────────────
+    if method == "POST" && url == "/api/employee-tasks" {
+        let c = conn.lock().unwrap();
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        c.execute(
+            "INSERT INTO employee_tasks (id,employee_id,title,description,priority,start_time,end_time,effort_percent,project_id,progress,status,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,0,'pending',?10,?11)",
+            rusqlite::params![id, body["employee_id"].as_str().unwrap_or(""), body["title"].as_str().unwrap_or(""),
+            body["description"].as_str().unwrap_or(""), body["priority"].as_i64().unwrap_or(2),
+            body["start_time"].as_str().unwrap_or(""), body["end_time"].as_str().unwrap_or(""),
+            body["effort_percent"].as_i64().unwrap_or(100), body["project_id"].as_str().unwrap_or(""), now, now]
+        ).unwrap();
+        return Ok(format!("\"{}\"", id));
+    }
+
     // ─── Projects ─────────────────────────────
     if method == "GET" && url == "/api/projects" {
         let c = conn.lock().unwrap();

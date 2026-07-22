@@ -215,6 +215,7 @@
             list_project_tasks: ['GET','/api/projects/'+(args?.projectId||'')+'/tasks'],
             delete_project: ['DELETE','/api/projects/'+(args?.id||'')],
             update_task_priority: ['PUT','/api/projects/priority/'+(args?.taskId||'')],
+            assign_task_to_employee: ['POST','/api/employee-tasks'],
           };
           const ep = apiMap[cmd];
           if (ep) {
@@ -229,6 +230,7 @@
             if (cmd === 'resume_task') body = args;
             if (cmd === 'reactivate_task') body = args;
             if (cmd === 'create_project') body = args?.input || args;
+            if (cmd === 'assign_task_to_employee') body = args?.input || args;
             // 转换 camelCase → snake_case 用于 HTTP API
             const toSnakeApi = (o) => {
               if (!o||typeof o!=='object') return o;
