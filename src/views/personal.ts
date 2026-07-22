@@ -12,6 +12,14 @@ interface WorkloadPoint {
   time: string; total_percent: number; level: string; task_ids: string[];
 }
 
+interface ConflictItem {
+  task_a_id: string;
+  task_b_id: string;
+  overlap_minutes: number;
+  severity: 'warning' | 'error';
+  time_range: string;
+}
+
 const STATUS_LABEL: Record<string, string> = {
   done: '已完成', active: '进行中', pending: '待处理', paused: '已暂停', postponed: '已延后',
 };
@@ -167,12 +175,13 @@ function bindTaskActions(tl: HTMLElement): void {
 
 export async function renderPersonal(container: HTMLElement): Promise<void> {
   currentContainer = container;
-  container.innerHTML = '<h2 style="font-size:20px;font-weight:700;margin-bottom:16px">📋 个人看板</h2><div id="workload" class="card"></div><div id="tasks" class="card"></div>';
+  container.innerHTML = '<h2 style="font-size:20px;font-weight:700;margin-bottom:16px">📋 个人看板</h2><div id="workload" class="card"></div><div id="tasks" class="card"></div><div id="conflicts" class="card"></div>';
 
   try {
-    const [tasks, workload] = await Promise.all([
+    const [tasks, workload, conflicts] = await Promise.all([
       invoke<Task[]>('list_tasks', { status: null, category: null, from: null, to: null }),
       invoke<WorkloadPoint[]>('get_workload_panel', { from: null, to: null }),
+      invoke<ConflictItem[]>('get_conflict_report'),
     ]);
 
     // Build task lookup map
@@ -225,6 +234,28 @@ export async function renderPersonal(container: HTMLElement): Promise<void> {
     }
     if (tasks.length === 0) tlHtml += '<p style="color:#94a3b8;font-size:14px;padding:12px 0">还没有任务，快去创建吧 ✨</p>';
     tl.innerHTML = tlHtml;
+
+    // ─── 冲突报告 ────────────────────────────
+    const cl = document.getElementById('conflicts')!;
+    if (conflicts.length === 0) {
+      cl.innerHTML = '<h3>⚠️ 时间冲突</h3><p style="color:#22c55e;font-size:14px;padding:12px 0">✅ 当前无时间冲突</p>';
+    } else {
+      let clHtml = '<h3>⚠️ 时间冲突 <span style="font-weight:400;font-size:13px;color:#94a3b8">(' + conflicts.length + ')</span></h3>';
+      for (const c of conflicts) {
+        const icon = c.severity === 'error' ? '🔴' : '🟡';
+        const titleA = taskMap[c.task_a_id]?.title || '(已删除)';
+        const titleB = taskMap[c.task_b_id]?.title || '(已删除)';
+        clHtml += `
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f1f5f9">
+          <span style="font-size:18px;line-height:1.4">${icon}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:500;color:#1e293b">${escHtml(titleA)} ↔ ${escHtml(titleB)}</div>
+            <div style="font-size:12px;color:#ef4444;margin-top:3px">重叠 ${c.overlap_minutes} 分钟</div>
+          </div>
+        </div>`;
+      }
+      cl.innerHTML = clHtml;
+    }
 
     // ─── 事件绑定 ────────────────────────────
     bindFormEvents();
