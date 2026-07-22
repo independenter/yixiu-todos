@@ -99,12 +99,13 @@
 
       /* ─── 表单元素 ──────────────────────────── */
       input, select, button { font-family: inherit; font-size: 13px; }
-      input[type="datetime-local"] {
+      input[type="date"], input[type="time"] {
         padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 6px;
-        outline: none; font-size: 13px; color-scheme: light;
-        min-width: 170px;
+        outline: none; font-size: 13px; background: #fff;
       }
-      input[type="datetime-local"]:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
+      input[type="date"]:focus, input[type="time"]:focus {
+        border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+      }
       .inline-form { display: flex; gap: 6px; margin-top: 8px; }
       .inline-form input { flex: 1; padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 6px; outline: none; }
       .inline-form input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }

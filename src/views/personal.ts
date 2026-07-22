@@ -48,10 +48,14 @@ function getFormHtml(): string {
         <input id="tf-effort" type="number" placeholder="精力%" value="100" style="width:80px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none">
         <input id="tf-category" placeholder="类别" value="personal" style="width:120px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none">
       </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-        <input id="tf-start" type="datetime-local" class="datetime-input" style="flex:1">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+        <span style="font-size:13px;color:#64748b">开始</span>
+        <input id="tf-start-date" type="date" style="flex:1;min-width:130px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
+        <input id="tf-start-time" type="time" step="60" value="09:00" style="width:110px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
         <span style="color:#94a3b8">→</span>
-        <input id="tf-end" type="datetime-local" class="datetime-input" style="flex:1">
+        <span style="font-size:13px;color:#64748b">结束</span>
+        <input id="tf-end-date" type="date" style="flex:1;min-width:130px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
+        <input id="tf-end-time" type="time" step="60" value="10:00" style="width:110px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;font-size:13px">
       </div>
       <div style="display:flex;gap:8px">
         <button id="tf-save" style="padding:7px 14px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500">保存</button>
@@ -68,8 +72,10 @@ function showForm(mode: 'create' | 'edit', task?: Task): void {
   const prioritySelect = document.getElementById('tf-priority') as HTMLSelectElement;
   const effortInput = document.getElementById('tf-effort') as HTMLInputElement;
   const categoryInput = document.getElementById('tf-category') as HTMLInputElement;
-  const startInput = document.getElementById('tf-start') as HTMLInputElement;
-  const endInput = document.getElementById('tf-end') as HTMLInputElement;
+  const startDate = document.getElementById('tf-start-date') as HTMLInputElement;
+  const startTime = document.getElementById('tf-start-time') as HTMLInputElement;
+  const endDate = document.getElementById('tf-end-date') as HTMLInputElement;
+  const endTime = document.getElementById('tf-end-time') as HTMLInputElement;
 
   if (mode === 'edit' && task) {
     editingId = task.id;
@@ -79,8 +85,14 @@ function showForm(mode: 'create' | 'edit', task?: Task): void {
     prioritySelect.value = String(task.priority);
     effortInput.value = String(task.effort_percent);
     categoryInput.value = task.category || '';
-    startInput.value = task.start_time ? task.start_time.slice(0, 16) : '';
-    endInput.value = task.end_time ? task.end_time.slice(0, 16) : '';
+    if (task.start_time) {
+      startDate.value = task.start_time.slice(0, 10);
+      startTime.value = task.start_time.slice(11, 16);
+    }
+    if (task.end_time) {
+      endDate.value = task.end_time.slice(0, 10);
+      endTime.value = task.end_time.slice(11, 16);
+    }
   } else {
     editingId = null;
     titleEl.textContent = '📝 新建任务';
@@ -90,10 +102,12 @@ function showForm(mode: 'create' | 'edit', task?: Task): void {
     effortInput.value = '100';
     categoryInput.value = 'personal';
     const now = new Date();
-    const roundMin = (d: Date) => new Date(d.getTime() - d.getSeconds() * 1000 - d.getMilliseconds());
+    const pad = (n: number) => String(n).padStart(2, '0');
+    startDate.value = now.toISOString().slice(0, 10);
+    startTime.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
     const soon = new Date(now.getTime() + 3600000);
-    startInput.value = roundMin(now).toISOString().slice(0, 16);
-    endInput.value = roundMin(soon).toISOString().slice(0, 16);
+    endDate.value = soon.toISOString().slice(0, 10);
+    endTime.value = `${pad(soon.getHours())}:${pad(soon.getMinutes())}`;
   }
   form.style.display = '';
 }
@@ -116,10 +130,12 @@ function bindFormEvents(): void {
     const priority = parseInt((document.getElementById('tf-priority') as HTMLSelectElement).value);
     const effort_percent = parseInt((document.getElementById('tf-effort') as HTMLInputElement).value) || 100;
     const category = (document.getElementById('tf-category') as HTMLInputElement).value.trim() || 'personal';
-    const startVal = (document.getElementById('tf-start') as HTMLInputElement).value;
-    const endVal = (document.getElementById('tf-end') as HTMLInputElement).value;
-    const start_time = startVal ? new Date(startVal).toISOString() : '';
-    const end_time = endVal ? new Date(endVal).toISOString() : '';
+    const startDate = (document.getElementById('tf-start-date') as HTMLInputElement).value;
+    const startTime = (document.getElementById('tf-start-time') as HTMLInputElement).value;
+    const endDate = (document.getElementById('tf-end-date') as HTMLInputElement).value;
+    const endTime = (document.getElementById('tf-end-time') as HTMLInputElement).value;
+    const start_time = (startDate && startTime) ? new Date(`${startDate}T${startTime}`).toISOString() : '';
+    const end_time = (endDate && endTime) ? new Date(`${endDate}T${endTime}`).toISOString() : '';
 
     try {
       if (editingId) {
