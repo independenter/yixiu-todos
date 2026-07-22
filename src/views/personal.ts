@@ -19,16 +19,24 @@ export async function renderPersonal(container: HTMLElement): Promise<void> {
     const tasks = await invoke<Task[]>('list_tasks', { status: null, category: null, from: null, to: null });
     const workload = await invoke<WorkloadPoint[]>('get_workload_panel', { from: null, to: null });
 
-    // Render workload summary
+    // Render workload as horizontal bar chart
     const wl = document.getElementById('workload')!;
-    wl.innerHTML = '<h3>精力占用</h3>';
+    wl.innerHTML = '<h3>精力占用</h3><div style="margin-top:8px">';
+
+    const maxPercent = Math.max(...workload.map(p => p.total_percent), 100);
     for (const p of workload) {
       const color = p.level === 'error' ? '#ef4444' : p.level === 'warning' ? '#f59e0b' : '#22c55e';
-      wl.innerHTML += `<div style="border-left:4px solid ${color};padding:6px 10px;margin:4px 0;background:#fff;border-radius:4px">
-        <strong>${p.time.slice(11, 16)}</strong>
-        <span style="margin-left:8px;color:${color};font-weight:bold">${p.total_percent}%</span>
-        <small style="display:block;color:#64748b">${p.level}</small>
-      </div>`;
+      const barWidth = Math.round((p.total_percent / maxPercent) * 100);
+      wl.innerHTML += `
+        <div style="margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b">
+            <span>${p.time.slice(11, 16)}</span>
+            <span style="color:${color};font-weight:bold">${p.total_percent}%</span>
+          </div>
+          <div style="background:#e2e8f0;border-radius:4px;height:20px;overflow:hidden">
+            <div style="width:${barWidth}%;height:100%;background:${color};border-radius:4px;transition:width 0.3s"></div>
+          </div>
+        </div>`;
     }
 
     // Render task list
