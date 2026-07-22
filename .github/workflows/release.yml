@@ -20,7 +20,10 @@ jobs:
           node-version: 20
 
       - name: Setup Rust
-        uses: dtolnay/rust-action@stable
+        uses: rust-lang/setup-rust@v1
+        with:
+          toolchain: stable
+          cache: true
 
       - name: Install Linux deps
         if: matrix.os == 'ubuntu-22.04'
