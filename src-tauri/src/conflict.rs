@@ -9,7 +9,6 @@
 
 use rusqlite::{params, Connection};
 use crate::db::DbState;
-use crate::task::ConflictItem;
 
 /// 重新计算所有冲突并写回 task_overlaps 表
 /// 由 task 的 create/update/delete/complete/postpone 调用
@@ -73,66 +72,9 @@ pub fn recompute_with_conn(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
-/// 给前端用：返回冲突列表（已被 task.rs 的 get_conflict_report 包装）
-#[allow(dead_code)]
-pub fn list(conn: &Connection) -> rusqlite::Result<Vec<ConflictItem>> {
-    let mut s = conn.prepare(
-        "SELECT task_a_id,task_b_id,overlap_minutes,severity,
-                (SELECT start_time FROM tasks WHERE id=task_a_id)||'-'||(SELECT end_time FROM tasks WHERE id=task_a_id),
-                (SELECT effort_percent FROM tasks WHERE id=task_a_id)+
-                (SELECT effort_percent FROM tasks WHERE id=task_b_id)
-         FROM task_overlaps ORDER BY overlap_minutes DESC"
-    )?;
-    let rows = s.query_map([], |r| Ok(ConflictItem {
-        task_a_id: r.get(0)?, task_b_id: r.get(1)?,
-        overlap_minutes: r.get(2)?, severity: r.get(3)?,
-        time_range: r.get(4)?, peak_percent: r.get(5)?,
-    }))?;
-    let mut out = Vec::new();
-    for r in rows { out.push(r?); }
-    Ok(out)
-}
-
 // ─── helpers ──────────────────────────────────────────
 fn parse(s: &str) -> chrono::DateTime<chrono::Utc> {
     chrono::DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&chrono::Utc))
         .unwrap_or_else(|_| chrono::Utc::now())
-}
-
-/// 实时检查单条新任务是否会冲突（用于前端"保存前预览"）
-#[allow(dead_code)]
-pub fn check_one_against_existing(
-    conn: &Connection,
-    new_start: &str,
-    new_end: &str,
-    new_effort: i64,
-) -> rusqlite::Result<Vec<ConflictItem>> {
-    let mut stmt = conn.prepare(
-        "SELECT id,start_time,end_time,effort_percent FROM tasks
-         WHERE status IN ('pending','active')"
-    )?;
-    let existing: Vec<(String, String, String, i64)> = stmt
-        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
-        .collect::<Result<Vec<_>, _>>()?;
-    drop(stmt);
-
-    let ns = parse(new_start);
-    let ne = parse(new_end);
-    let mut out = Vec::new();
-    for (id, s, e, ef) in existing {
-        let ts = parse(&s); let te = parse(&e);
-        let o_start = ns.max(ts); let o_end = ne.min(te);
-        if o_start >= o_end { continue; }
-        let mins = (o_end - o_start).num_minutes() as i64;
-        let peak = new_effort + ef;
-        let sev = if peak > 100 { "error" } else { "warning" };
-        out.push(ConflictItem {
-            task_a_id: "new".into(), task_b_id: id,
-            overlap_minutes: mins, severity: sev.into(),
-            time_range: format!("{}-{}", ns, ne),
-            peak_percent: peak,
-        });
-    }
-    Ok(out)
 }

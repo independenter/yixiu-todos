@@ -45,12 +45,12 @@ pub struct WorkloadPoint {
 
 #[derive(Debug, Serialize)]
 pub struct ConflictItem {
-    pub task_a_id: String,
-    pub task_b_id: String,
-    pub overlap_minutes: i64,
-    pub severity: String,    // warning / error
-    pub time_range: String,
-    pub peak_percent: i64,   // 冲突时刻的精力占用总和
+    pub time_range: String,      // "start-end"
+    pub duration_minutes: i64,   // 该时间片长度
+    pub total_percent: i64,      // 该时刻总精力占用
+    pub task_count: i64,         // 同时进行的任务数
+    pub task_ids: Vec<String>,   // 涉及的所有任务ID
+    pub severity: String,        // warning / error
 }
 
 // ─── 工具 ──────────────────────────────────────────────
@@ -274,27 +274,67 @@ pub fn get_workload_panel(
     Ok(result)
 }
 
-// ─── 8. 冲突报告 ──────────────────────────────────────
+// ─── 8. 冲突报告（按时间片聚合）────────────────────────
+// 不再用两两比较，改为计算每个时间片的总精力占用。
+// 当总占用 > 100% 时视为冲突，显示所有参与任务。
 #[tauri::command]
 pub fn get_conflict_report(state: State<'_, DbState>) -> Result<Vec<ConflictItem>, String> {
-    conflict::recompute_all(state.inner()).map_err(|e| e.to_string())?;
     let conn = state.personal.lock().unwrap();
-    let mut s = conn.prepare(
-        "SELECT task_a_id, task_b_id, overlap_minutes, severity,
-                (SELECT start_time FROM tasks WHERE id = task_a_id) || '-' ||
-                (SELECT end_time FROM tasks WHERE id = task_a_id),
-                (SELECT effort_percent FROM tasks WHERE id = task_a_id) +
-                (SELECT effort_percent FROM tasks WHERE id = task_b_id)
-         FROM task_overlaps ORDER BY overlap_minutes DESC"
-    ).map_err(|e| e.to_string())?;
-    let mut out = Vec::new();
-    let rows = s.query_map([], |r| Ok(ConflictItem {
-        task_a_id: r.get(0)?, task_b_id: r.get(1)?,
-        overlap_minutes: r.get(2)?, severity: r.get(3)?,
-        time_range: r.get(4)?, peak_percent: r.get(5)?,
-    })).map_err(|e| e.to_string())?;
-    for r in rows { out.push(r.map_err(|e| e.to_string())?); }
-    Ok(out)
+    let rows: Vec<(String, String, i64, String)> = {
+        let mut s = conn
+            .prepare("SELECT id, start_time, end_time, effort_percent FROM tasks WHERE status IN ('pending','active')")
+            .map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        let iter = s.query_map([], |r| Ok((
+            r.get::<_,String>(0)?, r.get::<_,String>(1)?,
+            r.get::<_,i64>(3)?, r.get::<_,String>(2)?,
+        ))).map_err(|e| e.to_string())?;
+        for r in iter { out.push(r.map_err(|e| e.to_string())?); }
+        out
+    };
+    drop(conn);
+
+    // 收集所有时间边界
+    let mut boundaries: Vec<DateTime<Utc>> = Vec::new();
+    for (_, s, _, e) in &rows {
+        if let Ok(t) = parse_time(s) { boundaries.push(t); }
+        if let Ok(t) = parse_time(e) { boundaries.push(t); }
+    }
+    boundaries.sort();
+    boundaries.dedup();
+
+    // 按时间片计算并发量，只保留 >100% 的冲突片
+    let mut result = Vec::new();
+    for win in boundaries.windows(2) {
+        let t0 = win[0];
+        let t1 = win[1];
+        let dur = (t1 - t0).num_minutes() as i64;
+        if dur < 1 { continue; }
+        let mut total: i64 = 0;
+        let mut ids: Vec<String> = Vec::new();
+        for (id, s, ef, e) in &rows {
+            if let (Ok(ss), Ok(ee)) = (parse_time(s), parse_time(e)) {
+                if ss < t1 && ee > t0 {
+                    total += ef;
+                    ids.push(id.clone());
+                }
+            }
+        }
+        if total > 100 {
+            let sev = if total > 150 { "error".to_string() } else { "warning".to_string() };
+            result.push(ConflictItem {
+                time_range: format!("{}/{}", t0.to_rfc3339(), t1.to_rfc3339()),
+                duration_minutes: dur,
+                total_percent: total,
+                task_count: ids.len() as i64,
+                task_ids: ids,
+                severity: sev,
+            });
+        }
+    }
+    // 按 total_percent 降序排列
+    result.sort_by(|a, b| b.total_percent.cmp(&a.total_percent));
+    Ok(result)
 }
 
 // ─── 9. 导出时间相关任务 ──────────────────────────────

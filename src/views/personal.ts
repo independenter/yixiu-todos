@@ -13,12 +13,12 @@ interface WorkloadPoint {
 }
 
 interface ConflictItem {
-  task_a_id: string;
-  task_b_id: string;
-  overlap_minutes: number;
-  severity: 'warning' | 'error';
   time_range: string;
-  peak_percent: number;
+  duration_minutes: number;
+  total_percent: number;
+  task_count: number;
+  task_ids: string[];
+  severity: 'warning' | 'error';
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -277,18 +277,19 @@ export async function renderPersonal(container: HTMLElement): Promise<void> {
       let clHtml = '<h3>⚠️ 时间冲突 <span style="font-weight:400;font-size:13px;color:#94a3b8">(' + conflicts.length + ')</span></h3>';
       for (const c of conflicts) {
         const icon = c.severity === 'error' ? '🔴' : '🟡';
-        const titleA = taskMap[c.task_a_id]?.title || '(已删除)';
-        const titleB = taskMap[c.task_b_id]?.title || '(已删除)';
-        const peakColor = c.peak_percent > 100 ? '#ef4444' : '#f59e0b';
+        const taskNames = c.task_ids.map(id => taskMap[id]?.title || id.slice(0,6)).join('、');
+        const timeLabel = c.time_range.replace(/T/g, ' ').replace(/\.\d+Z$|:\d{2}Z$/, '').replace('/',' → ');
         clHtml += `
         <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f1f5f9">
           <span style="font-size:18px;line-height:1.4">${icon}</span>
           <div style="flex:1;min-width:0">
-            <div style="font-size:14px;font-weight:500;color:#1e293b">${escHtml(titleA)} ↔ ${escHtml(titleB)}</div>
+            <div style="font-size:14px;font-weight:500;color:#1e293b">
+              ${c.task_count} 个任务重叠：${escHtml(taskNames)}
+            </div>
             <div style="display:flex;gap:12px;font-size:12px;margin-top:3px">
-              <span style="color:#64748b">重叠 ${c.overlap_minutes} 分钟</span>
-              <span style="color:${peakColor};font-weight:600">并发 ${c.peak_percent}%</span>
-              <span style="color:#94a3b8">${c.severity === 'error' ? '⚠️ 过载' : '⚡ 注意'}</span>
+              <span style="color:#64748b">${timeLabel}</span>
+              <span style="color:${c.total_percent > 100 ? '#ef4444' : '#f59e0b'};font-weight:600">总并发 ${c.total_percent}%</span>
+              <span style="color:#94a3b8">持续 ${c.duration_minutes} 分钟</span>
             </div>
           </div>
         </div>`;
