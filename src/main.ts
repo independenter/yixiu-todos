@@ -120,15 +120,38 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 };
 
-// 重新激活已完成的任务
-(window as any).reactivateTask = async (taskId: string) => {
-  const archive = confirm('📦 归档旧STAR记录？\n\n"确定"=新STAR另起一轮\n"取消"=继续使用当前记录');
+// 重新激活已完成的任务（弹出选择模态框）
+(window as any).reactivateTask = (taskId: string) => {
+  const existing = document.getElementById('reactivate-modal');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'reactivate-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:2000;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:24px;max-width:380px;width:90%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.15)">
+      <div style="font-size:32px;margin-bottom:12px">🔄</div>
+      <h3 style="font-size:17px;font-weight:600;margin-bottom:6px;color:#1e293b">重新激活任务</h3>
+      <p style="font-size:14px;color:#64748b;margin-bottom:18px">原 STAR 记录如何处理？</p>
+      <button onclick="doReactivate('${taskId}','archive_old')" style="width:100%;padding:11px 16px;margin-bottom:8px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:10px;cursor:pointer;font-size:14px;font-weight:500;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">📦</span>
+        <span style="text-align:left"><strong>需求变更</strong><br><span style="font-size:12px;font-weight:400;color:#64748b">归档旧STAR记录，新事件另起一轮</span></span>
+      </button>
+      <button onclick="doReactivate('${taskId}','continue')" style="width:100%;padding:11px 16px;margin-bottom:12px;background:#f8fafc;color:#334155;border:1px solid #e2e8f0;border-radius:10px;cursor:pointer;font-size:14px;font-weight:500;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🔄</span>
+        <span style="text-align:left"><strong>重新激活</strong><br><span style="font-size:12px;font-weight:400;color:#64748b">继续使用当前STAR记录，不归档</span></span>
+      </button>
+      <button onclick="document.getElementById('reactivate-modal')?.remove()" style="padding:6px 20px;background:#fff;color:#94a3b8;border:none;border-radius:8px;cursor:pointer;font-size:13px">取消</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+};
+
+// 执行重新激活
+(window as any).doReactivate = async (taskId: string, mode: string) => {
   try {
-    await invoke('reactivate_task', { taskId, mode: archive ? 'archive_old' : 'continue' });
+    await invoke('reactivate_task', { taskId, mode: mode === 'archive_old' ? 'archive_old' : 'continue' });
     location.reload();
-  } catch (e) {
-    alert(`重新激活失败: ${e}`);
-  }
+  } catch (e) { alert('重新激活失败: ' + e); }
 };
 
 // ─── 强制规则管理 ───────────────────────────────
