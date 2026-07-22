@@ -1,0 +1,16 @@
+- generic [ref=f7e2]:
+  - navigation [ref=f7e3]:
+    - generic [ref=f7e4]: 一修Todo v0.2
+    - link "📋 个人看板" [ref=f7e5] [cursor=pointer]:
+      - /url: "#personal"
+    - link "👥 团队面板" [ref=f7e6] [cursor=pointer]:
+      - /url: "#team"
+  - generic [ref=f7e7]:
+    - heading "📋 个人看板" [level=2] [ref=f7e8]
+    - generic [ref=f7e11]:
+      - heading "⚠️ 加载失败" [level=3] [ref=f7e12]
+      - paragraph [ref=f7e13]: "TypeError: Cannot read properties of undefined (reading 'invoke')"
+      - paragraph [ref=f7e14]:
+        - text: 请确保应用已通过
+        - code [ref=f7e15]: npm run tauri dev
+        - text: 启动

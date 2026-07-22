@@ -25,7 +25,7 @@ const EVENT_ICONS: Record<string, string> = {
 };
 
 export async function renderStarPanel(container: HTMLElement, taskId: string, _taskStatus: string): Promise<void> {
-  container.innerHTML = '<h3 style="margin-bottom:12px">📋 STAR 任务定义</h3>';
+  container.innerHTML = '<h3 style="font-size:15px;font-weight:600;margin-bottom:12px;color:#334155">📋 STAR 任务定义</h3>';
 
   // Load all events and stats
   const [events, stats] = await Promise.all([
@@ -42,9 +42,9 @@ export async function renderStarPanel(container: HTMLElement, taskId: string, _t
   // Pause status bar (if paused now)
   if (stats.is_paused_now) {
     container.innerHTML += `
-      <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:8px 12px;margin-bottom:12px">
+      <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px">
         ⏸️ 已暂停 — ${stats.current_pause_reason || '无原因'}
-        <button onclick="resumeTask('${taskId}')" style="margin-left:8px;padding:4px 12px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer">恢复</button>
+        <button class="btn-resume" onclick="resumeTask('${taskId}')">恢复</button>
       </div>`;
   }
 
@@ -52,34 +52,38 @@ export async function renderStarPanel(container: HTMLElement, taskId: string, _t
   for (const section of ['S', 'T', 'A', 'R'] as const) {
     const label = SECTION_LABELS[section];
     const sectionEvents = grouped[section] || [];
-    const sectionHtml = `
-      <div style="background:#fff;border-radius:8px;margin-bottom:8px;overflow:hidden">
-        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'"
-             style="padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;border-bottom:1px solid #f1f5f9">
+    const isFirst = section === 'S';
+
+    const bodyDisplay = isFirst ? 'block' : 'none';
+    container.innerHTML += `
+      <div class="star-section">
+        <div class="star-header" onclick="
+          const body = this.nextElementSibling;
+          body.style.display = body.style.display === 'none' ? 'block' : 'none';
+        ">
           <strong>[${section}] ${label.zh}</strong>
-          <span style="color:#64748b;font-size:13px">${label.question}</span>
+          <span style="color:#94a3b8;font-size:12px">${label.question}</span>
         </div>
-        <div style="padding:8px 14px">
-          ${sectionEvents.length === 0 ? '<p style="color:#94a3b8;font-size:13px">暂无记录</p>' : ''}
+        <div class="star-body" style="display:${bodyDisplay}">
+          ${sectionEvents.length === 0 ? '<p style="color:#94a3b8;font-size:13px;padding:6px 0">暂无记录</p>' : ''}
           ${sectionEvents.map(e => `
-            <div style="display:flex;align-items:baseline;padding:4px 0;border-left:2px solid ${e.event_type === 'blocker' ? '#ef4444' : '#e2e8f0'};padding-left:10px;margin:4px 0">
+            <div class="star-event" style="border-left-color:${e.event_type === 'blocker' ? '#ef4444' : '#e2e8f0'}">
               <span style="margin-right:6px">${EVENT_ICONS[e.event_type] || '○'}</span>
               <span style="flex:1">${e.content}</span>
-              <small style="color:#94a3b8;font-size:12px">${e.created_at.slice(11, 19)}</small>
+              <span class="time">${e.created_at.slice(11, 19)}</span>
             </div>
           `).join('')}
-          <div style="margin-top:6px;display:flex;gap:4px">
-            <input id="star-input-${section}" placeholder="添加${label.zh}事件..." style="flex:1;padding:6px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:13px">
-            <select id="star-type-${section}" style="padding:6px;border:1px solid #e2e8f0;border-radius:4px;font-size:13px">
+          <div class="inline-form">
+            <input id="star-input-${section}" placeholder="添加${label.zh}事件...">
+            <select id="star-type-${section}">
               <option value="note">普通</option>
               <option value="blocker">🔴 阻碍</option>
               <option value="pause" ${section !== 'A' ? 'disabled' : ''}>⏸️ 暂停</option>
             </select>
-            <button onclick="addStarEvent('${taskId}','${section}')" style="padding:6px 12px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer">+</button>
+            <button onclick="addStarEvent('${taskId}','${section}')">+</button>
           </div>
         </div>
       </div>`;
-    container.innerHTML += sectionHtml;
   }
 
   // Pause statistics
@@ -87,8 +91,8 @@ export async function renderStarPanel(container: HTMLElement, taskId: string, _t
     const hrs = Math.floor(stats.total_pause_seconds / 3600);
     const mins = Math.floor((stats.total_pause_seconds % 3600) / 60);
     container.innerHTML += `
-      <div style="font-size:13px;color:#64748b;text-align:right;padding:8px">
-        暂停 ${stats.pause_count} 次，共 ${hrs}h${mins}min
+      <div style="font-size:13px;color:#94a3b8;text-align:right;padding:8px 4px">
+        ⏸️ 暂停 ${stats.pause_count} 次，共 ${hrs}h${mins}min
       </div>`;
   }
 }

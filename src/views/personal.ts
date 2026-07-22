@@ -12,46 +12,59 @@ interface WorkloadPoint {
   time: string; total_percent: number; level: string; task_ids: string[];
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  done: '已完成', active: '进行中', pending: '待处理', paused: '已暂停', postponed: '已延后',
+};
+
 export async function renderPersonal(container: HTMLElement): Promise<void> {
-  container.innerHTML = '<h2>📋 个人看板</h2><div id="workload"></div><div id="tasks"></div><div id="conflicts"></div>';
+  container.innerHTML = '<h2 style="font-size:20px;font-weight:700;margin-bottom:16px">📋 个人看板</h2><div id="workload" class="card"></div><div id="tasks" class="card"></div>';
 
   try {
-    const tasks = await invoke<Task[]>('list_tasks', { status: null, category: null, from: null, to: null });
-    const workload = await invoke<WorkloadPoint[]>('get_workload_panel', { from: null, to: null });
+    const [tasks, workload] = await Promise.all([
+      invoke<Task[]>('list_tasks', { status: null, category: null, from: null, to: null }),
+      invoke<WorkloadPoint[]>('get_workload_panel', { from: null, to: null }),
+    ]);
 
-    // Render workload as horizontal bar chart
+    // ─── 精力柱状图 ─────────────────────────
     const wl = document.getElementById('workload')!;
-    wl.innerHTML = '<h3>精力占用</h3><div style="margin-top:8px">';
-
     const maxPercent = Math.max(...workload.map(p => p.total_percent), 100);
+    let wlHtml = '<h3>⏱️ 精力占用</h3><div style="margin-top:10px">';
     for (const p of workload) {
       const color = p.level === 'error' ? '#ef4444' : p.level === 'warning' ? '#f59e0b' : '#22c55e';
       const barWidth = Math.round((p.total_percent / maxPercent) * 100);
-      wl.innerHTML += `
-        <div style="margin-bottom:6px">
-          <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b">
+      wlHtml += `
+        <div style="margin-bottom:7px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b;margin-bottom:3px">
             <span>${p.time.slice(11, 16)}</span>
-            <span style="color:${color};font-weight:bold">${p.total_percent}%</span>
+            <span style="color:${color};font-weight:700">${p.total_percent}%</span>
           </div>
-          <div style="background:#e2e8f0;border-radius:4px;height:20px;overflow:hidden">
-            <div style="width:${barWidth}%;height:100%;background:${color};border-radius:4px;transition:width 0.3s"></div>
+          <div class="bar-bg">
+            <div class="bar-fill" style="width:${barWidth}%;background:${color}"></div>
           </div>
         </div>`;
     }
+    if (workload.length === 0) wlHtml += '<p style="color:#94a3b8;font-size:14px;padding:12px 0">暂无任务，开始添加吧</p>';
+    wl.innerHTML = wlHtml;
 
-    // Render task list
+    // ─── 任务列表 ────────────────────────────
     const tl = document.getElementById('tasks')!;
-    tl.innerHTML = '<h3 style="margin-top:16px">任务列表</h3>';
+    let tlHtml = '<h3>📌 任务列表 <span style="font-weight:400;font-size:13px;color:#94a3b8">(' + tasks.length + ')</span></h3>';
     for (const t of tasks) {
-      const statusColor = t.status === 'done' ? '#22c55e' : t.status === 'paused' ? '#f59e0b' : '#3b82f6';
-      const link = `<a href="#task/${t.id}" style="text-decoration:none;color:inherit">${t.title}</a>`;
-      tl.innerHTML += `<div style="padding:8px;margin:4px 0;background:#fff;border-radius:4px;border-left:3px solid ${statusColor}">
-        <strong>${link}</strong>
-        <span style="float:right;font-size:12px;color:#64748b">${t.status}</span>
-        <small style="display:block;color:#64748b">${t.start_time.slice(11,16)} → ${t.end_time.slice(11,16)} | ${t.effort_percent}% | 优先级${t.priority}</small>
-      </div>`;
+      const badgeClass = `badge badge-${t.status === 'done' ? 'done' : t.status === 'paused' ? 'paused' : t.status === 'active' ? 'active' : 'pending'}`;
+      const borderColor = t.status === 'done' ? '#22c55e' : t.status === 'paused' ? '#f59e0b' : t.status === 'active' ? '#3b82f6' : '#e2e8f0';
+      tlHtml += `
+        <div class="task-row" onclick="location.hash='#task/${t.id}'" style="border-left-color:${borderColor}">
+          <div class="title">${t.title}</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="meta">${t.start_time.slice(11,16)}→${t.end_time.slice(11,16)}</span>
+            <span class="effort" style="color:${t.effort_percent > 100 ? '#ef4444' : t.effort_percent > 80 ? '#f59e0b' : '#22c55e'}">${t.effort_percent}%</span>
+            <span class="badge ${badgeClass}">${STATUS_LABEL[t.status] || t.status}</span>
+          </div>
+        </div>`;
     }
+    if (tasks.length === 0) tlHtml += '<p style="color:#94a3b8;font-size:14px;padding:12px 0">还没有任务，快去创建吧 ✨</p>';
+    tl.innerHTML = tlHtml;
   } catch (e) {
-    container.innerHTML += `<p style="color:#ef4444">加载失败: ${e}</p>`;
+    container.innerHTML += `<div class="card" style="color:#ef4444"><h3>⚠️ 加载失败</h3><p style="font-size:14px">${e}</p><p style="font-size:12px;color:#94a3b8;margin-top:8px">请确保应用已通过 <code>npm run tauri dev</code> 启动</p></div>`;
   }
 }

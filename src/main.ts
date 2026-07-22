@@ -26,10 +26,13 @@ const router = new Router(async (container: HTMLElement, route: Route) => {
 });
 
 // ─── 事件监听（导航/提醒）────────────────────────
-listen<string>('navigate', (e) => {
-  console.log('导航到', e.payload);
-  // 这里可以切 tab / 路由
-});
+try {
+  listen<string>('navigate', (e) => {
+    console.log('导航到', e.payload);
+  });
+} catch (e) {
+  console.log('非 Tauri 环境，跳过事件监听');
+}
 
 // ─── 启动 ───────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {

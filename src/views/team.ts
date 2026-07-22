@@ -12,23 +12,40 @@ interface EmpWorkload {
 }
 
 export async function renderTeam(container: HTMLElement): Promise<void> {
-  container.innerHTML = '<h2>👥 团队面板</h2><div id="employees"></div>';
+  container.innerHTML = '<h2 style="font-size:20px;font-weight:700;margin-bottom:16px">👥 团队面板</h2><div id="employees"></div>';
 
   try {
     const employees = await invoke<Employee[]>('list_employees');
     const empDiv = document.getElementById('employees')!;
 
+    if (employees.length === 0) {
+      empDiv.innerHTML = '<div class="card"><p style="color:#94a3b8;padding:12px 0">暂无员工，请先添加</p></div>';
+      return;
+    }
+
     for (const emp of employees) {
       try {
         const wl = await invoke<EmpWorkload>('get_employee_workload', { employeeId: emp.id });
-        empDiv.innerHTML += `<div style="background:#fff;border-radius:8px;padding:12px;margin:8px 0">
-          <h3>${emp.name} <small style="color:#64748b">${emp.role}</small></h3>
-          <p>精力占用: <strong>${wl.total_percent}%</strong> | 活跃: ${wl.active_tasks} | 平均进度: ${wl.avg_progress}%</p>
-          ${wl.alerts.map(a => `<p style="color:#ef4444;font-size:14px">⚠️ ${a}</p>`).join('')}
-        </div>`;
+        const progressColor = wl.avg_progress > 80 ? '#22c55e' : wl.avg_progress > 50 ? '#f59e0b' : '#ef4444';
+        empDiv.innerHTML += `
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <h3 style="font-size:15px;font-weight:600">${emp.name} <small style="color:#94a3b8;font-weight:400">${emp.role || ''}</small></h3>
+              <span style="font-size:13px;color:${wl.total_percent > 100 ? '#ef4444' : '#64748b'}">⚡ ${wl.total_percent}%</span>
+            </div>
+            <div style="display:flex;gap:16px;margin-top:8px;font-size:13px;color:#64748b">
+              <span>活跃: <strong>${wl.active_tasks}</strong></span>
+              <span>进度: <strong style="color:${progressColor}">${wl.avg_progress}%</strong></span>
+            </div>
+            ${wl.alerts.length > 0 ? `
+              <div style="margin-top:8px;font-size:13px">
+                ${wl.alerts.map(a => `<div style="color:#ef4444;padding:2px 0">⚠️ ${a}</div>`).join('')}
+              </div>
+            ` : ''}
+          </div>`;
       } catch { /* skip failed load */ }
     }
   } catch (e) {
-    container.innerHTML += `<p style="color:#ef4444">加载失败: ${e}</p>`;
+    container.innerHTML += `<div class="card" style="color:#ef4444"><h3>⚠️ 加载失败</h3><p style="font-size:14px">${e}</p></div>`;
   }
 }
