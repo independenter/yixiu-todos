@@ -123,6 +123,40 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch (e) { alert(`删除失败: ${e}`); }
 };
 
+// ─── 数据库维护 ─────────────────────────────────
+(window as any).vacuumDb = async (days?: number) => {
+  try {
+    await invoke('vacuum_db', { deleteDoneOlderThanDays: days || null });
+    const el = document.getElementById('db-result');
+    if (el) el.textContent = '✅ 数据库优化完成' + (days ? `（已删除${days}天前的已完成任务）` : '');
+  } catch (e) { alert(`清理失败: ${e}`); }
+};
+
+(window as any).exportReport = async (format: string) => {
+  const from = new Date(Date.now() - 30*86400000).toISOString().slice(0,10);
+  const to = new Date().toISOString().slice(0,10);
+  try {
+    const data = await invoke<string>('export_time_report', { from, to, format });
+    const blob = new Blob([data], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `tasks-export.${format}`; a.click();
+    URL.revokeObjectURL(url);
+    const el = document.getElementById('db-result');
+    if (el) el.textContent = `✅ 已导出 ${format.toUpperCase()} 文件`;
+  } catch (e) { alert(`导出失败: ${e}`); }
+};
+
+(window as any).testNotification = async () => {
+  const title = (document.getElementById('rem-title') as HTMLInputElement)?.value || '测试';
+  const body = (document.getElementById('rem-body') as HTMLInputElement)?.value || '测试通知';
+  const urgency = (document.getElementById('rem-urgency') as HTMLSelectElement)?.value || 'normal';
+  try {
+    await invoke('send_notification', { title, body, urgency });
+    alert('✅ 通知已发送（桌面端可见）');
+  } catch (e) { alert(`发送失败: ${e}`); }
+};
+
 // ─── 团队面板：员工管理 ───────────────────────────
 
 (window as any).toggleEl = (id: string) => {

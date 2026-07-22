@@ -137,6 +137,10 @@
             get_employee_workload: { total_percent: 0, active_tasks: 0, avg_progress: 0, alerts: [] },
             get_star_events: [],
             get_task_pause_stats: { pause_count: 0, total_pause_seconds: 0, is_paused_now: false },
+            list_force_rules: [],
+            send_notification: null,
+            export_time_report: '',
+            vacuum_db: null,
           };
           return Promise.resolve(mocks[cmd] !== undefined ? mocks[cmd] : null);
         },

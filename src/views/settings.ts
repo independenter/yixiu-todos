@@ -38,6 +38,35 @@ export async function renderSettings(container: HTMLElement): Promise<void> {
         </div>
       `).join('');
     }
+
+    // 🗄️ 数据库维护
+    container.innerHTML += `
+      <div id="db-maintenance" class="card" style="margin-top:16px">
+        <h3>🗄️ 数据库维护</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button onclick="vacuumDb()" style="padding:8px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer">🧹 清理并优化</button>
+          <button onclick="vacuumDb(7)" style="padding:8px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer">🗑️ 删除7天前已完成任务</button>
+          <button onclick="exportReport('json')" style="padding:8px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer">📤 导出 JSON</button>
+          <button onclick="exportReport('csv')" style="padding:8px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer">📤 导出 CSV</button>
+        </div>
+        <div id="db-result" style="margin-top:8px;font-size:13px;color:#64748b"></div>
+      </div>`;
+
+    // 🔔 提醒测试
+    container.innerHTML += `
+      <div id="reminder-test" class="card" style="margin-top:16px">
+        <h3>🔔 提醒测试</h3>
+        <div class="inline-form" style="margin-top:8px">
+          <input id="rem-title" placeholder="提醒标题" value="一修Todo 测试" style="flex:1">
+          <input id="rem-body" placeholder="提醒内容" value="这是一条测试通知" style="flex:2">
+          <select id="rem-urgency" style="width:100px">
+            <option value="normal">普通</option>
+            <option value="low">低</option>
+            <option value="critical">紧急</option>
+          </select>
+          <button onclick="testNotification()">发送</button>
+        </div>
+      </div>`;
   } catch (e) {
     container.innerHTML += `<div class="card" style="color:#ef4444">加载失败: ${e}</div>`;
   }
