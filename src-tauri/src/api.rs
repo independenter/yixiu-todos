@@ -154,6 +154,69 @@ fn handle(method: &str, url: &str, body: &Value, db_path: &PathBuf) -> Result<St
         return Ok("null".into());
     }
 
+    // ─── Projects ─────────────────────────────
+    if method == "GET" && url == "/api/projects" {
+        let c = conn.lock().unwrap();
+        let mut s = c.prepare(
+            "SELECT p.id,p.name,p.description,p.priority,p.status,p.created_at,p.updated_at,
+                    (SELECT COUNT(DISTINCT employee_id) FROM employee_tasks WHERE project_id=p.id) as member_count,
+                    (SELECT COUNT(*) FROM employee_tasks WHERE project_id=p.id) as task_total,
+                    (SELECT COUNT(*) FROM employee_tasks WHERE project_id=p.id AND status='done') as task_done
+             FROM projects p WHERE p.status='active' ORDER BY p.priority, p.created_at"
+        ).unwrap();
+        let rows: Vec<Value> = s.query_map([], |r| Ok(json!({
+            "id":r.get::<_,String>(0)?,"name":r.get::<_,String>(1)?,"description":r.get::<_,String>(2)?,
+            "priority":r.get::<_,i64>(3)?,"status":r.get::<_,String>(4)?,
+            "member_count":r.get::<_,i64>(7).unwrap_or(0),"task_total":r.get::<_,i64>(8).unwrap_or(0),
+            "task_done":r.get::<_,i64>(9).unwrap_or(0),"overload_count":0,
+        }))).unwrap().filter_map(|r| r.ok()).collect();
+        return serde_json::to_string(&rows).map_err(|e| e.to_string());
+    }
+
+    if method == "POST" && url == "/api/projects" {
+        let c = conn.lock().unwrap();
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        c.execute("INSERT INTO projects (id,name,description,priority,status,created_at,updated_at) VALUES (?1,?2,?3,?4,'active',?5,?6)",
+            rusqlite::params![id, body["name"].as_str().unwrap_or(""), body["description"].as_str().unwrap_or(""),
+            body["priority"].as_i64().unwrap_or(2), now, now]).unwrap();
+        return Ok(format!("\"{}\"", id));
+    }
+
+    if method == "GET" && url.starts_with("/api/projects/") && url.ends_with("/tasks") {
+        let pid = url.strip_prefix("/api/projects/").and_then(|s| s.strip_suffix("/tasks")).unwrap_or("");
+        let c = conn.lock().unwrap();
+        let mut s = c.prepare(
+            "SELECT et.id,et.employee_id,e.name,et.title,et.priority,et.global_priority,et.project_priority,
+                    et.start_time,et.end_time,et.effort_percent,et.progress,et.status
+             FROM employee_tasks et JOIN employees e ON et.employee_id=e.id
+             WHERE et.project_id=?1 ORDER BY et.global_priority"
+        ).unwrap();
+        let rows: Vec<Value> = s.query_map(rusqlite::params![pid], |r| Ok(json!({
+            "id":r.get::<_,String>(0)?,"employee_id":r.get::<_,String>(1)?,"employee_name":r.get::<_,String>(2)?,
+            "title":r.get::<_,String>(3)?,"priority":r.get::<_,i64>(4)?,"global_priority":r.get::<_,i64>(5)?,
+            "project_priority":r.get::<_,i64>(6)?,"start_time":r.get::<_,String>(7)?,"end_time":r.get::<_,String>(8)?,
+            "effort_percent":r.get::<_,i64>(9)?,"progress":r.get::<_,i64>(10)?,"status":r.get::<_,String>(11)?,
+        }))).unwrap().filter_map(|r| r.ok()).collect();
+        return serde_json::to_string(&rows).map_err(|e| e.to_string());
+    }
+
+    if method == "DELETE" && url.starts_with("/api/projects/") {
+        let id = url.strip_prefix("/api/projects/").unwrap_or("");
+        let c = conn.lock().unwrap();
+        c.execute("UPDATE employee_tasks SET project_id=NULL WHERE project_id=?1", rusqlite::params![id]).unwrap();
+        c.execute("DELETE FROM projects WHERE id=?1", rusqlite::params![id]).unwrap();
+        return Ok("null".into());
+    }
+
+    if method == "PUT" && url.starts_with("/api/projects/priority/") {
+        let task_id = url.strip_prefix("/api/projects/priority/").unwrap_or("");
+        let c = conn.lock().unwrap();
+        let np = body["new_global_priority"].as_i64().unwrap_or(body["newGlobalPriority"].as_i64().unwrap_or(0));
+        c.execute("UPDATE employee_tasks SET global_priority=?1 WHERE id=?2", rusqlite::params![np, task_id]).unwrap();
+        return Ok("null".into());
+    }
+
     if method == "GET" && url.starts_with("/api/star/") {
         let task_id = url.strip_prefix("/api/star/").unwrap_or("");
         let c = conn.lock().unwrap();

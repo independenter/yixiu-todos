@@ -156,7 +156,7 @@
       };
 
       const mockDb = (() => {
-        let tasks=[], employees=[], forceRules=[], taskEvents=[], empTasks=[], nextId=1;
+        let tasks=[], employees=[], forceRules=[], taskEvents=[], empTasks=[], projects=[], nextId=1;
         const uid=()=>'id-'+String(nextId++).padStart(3,'0'), now=()=>new Date().toISOString();
         return {
           async invoke(cmd, a) {
@@ -182,8 +182,10 @@
               case 'pause_task':{const t=tasks.find(x=>x.id===(i.task_id||a.taskId));if(t)t.status='paused';return null;}
               case 'resume_task':{const t=tasks.find(x=>x.id===(i.task_id||a.taskId));if(t)t.status='active';return null;}
 	              case 'reactivate_task':{const t=tasks.find(x=>x.id===(i.task_id||a.taskId));if(t){t.status='active';t.updated_at=now();}return null;}
-              case 'reactivate_task':{const t=tasks.find(x=>x.id===(i.task_id||a.taskId));if(t){t.status='active';t.updated_at=now();}return null;}
               case 'assign_task_to_employee': { empTasks.push({...i,id:uid(),progress:0,status:'pending',created_at:now(),updated_at:now()}); return null; }
+              case 'list_projects': return [...(projects||[])];
+              case 'create_project': { const p={...i,id:uid(),status:'active',created_at:now(),updated_at:now()}; projects.push(p); return p.id; }
+              case 'list_project_tasks': return [];
               default: return null;
             }
           }
@@ -208,6 +210,11 @@
             add_star_event: ['POST','/api/star'],
             pause_task: ['POST','/api/tasks/'+(args?.taskId||'')+'/pause'],
             resume_task: ['POST','/api/tasks/'+(args?.taskId||'')+'/resume'],
+            list_projects: ['GET','/api/projects'],
+            create_project: ['POST','/api/projects'],
+            list_project_tasks: ['GET','/api/projects/'+(args?.projectId||'')+'/tasks'],
+            delete_project: ['DELETE','/api/projects/'+(args?.id||'')],
+            update_task_priority: ['PUT','/api/projects/priority/'+(args?.taskId||'')],
           };
           const ep = apiMap[cmd];
           if (ep) {
@@ -221,6 +228,7 @@
             if (cmd === 'pause_task') body = args;
             if (cmd === 'resume_task') body = args;
             if (cmd === 'reactivate_task') body = args;
+            if (cmd === 'create_project') body = args?.input || args;
             // 转换 camelCase → snake_case 用于 HTTP API
             const toSnakeApi = (o) => {
               if (!o||typeof o!=='object') return o;
