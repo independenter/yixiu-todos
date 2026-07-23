@@ -1,0 +1,118 @@
+name: debug
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    # RUSTUP_HOME/CARGO_HOME → 项目目录（--bind 挂载），
+    # 这样 rust 工具链安装一次后就持久化，不用每次下载
+    env:
+      RUSTUP_HOME: ${{ github.workspace }}/.rustup
+      CARGO_HOME: ${{ github.workspace }}/.cargo
+
+    steps:
+      - name: Show memory
+        run: |
+          free -h
+          cat /proc/meminfo | head
+
+      - name: Debug workspace
+        run: |
+          pwd
+          ls -la
+          ls -la .github/actions || echo ".github/actions missing"
+          ls -la .github/actions/setup-node || echo "setup-node missing"
+          ls -la .github/actions/setup-node/action.yml || echo "action.yml missing"
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+        with:
+          node-version: '20'
+
+      # act --bind 已挂载仓库，无需重复 checkout
+      - name: Checkout
+        if: ${{ !env.ACT }}
+        uses: ./.github/actions/checkout
+        with:
+          fetch-depth: 1
+
+      - name: Limit cargo memory usage
+        run: |
+          echo "CARGO_BUILD_JOBS=1" >> $GITHUB_ENV
+          echo "CARGO_PROFILE_RELEASE_LTO=thin" >> $GITHUB_ENV
+          echo "CARGO_PROFILE_RELEASE_CODEGEN_UNITS=2" >> $GITHUB_ENV
+
+      # ---------- Rust ----------
+      # Rustup & cargo 安装在项目目录内（--bind 持久化）
+      - name: Restore Rust PATH
+        run: |
+          if [ -d "${CARGO_HOME}/bin" ]; then
+            echo "${CARGO_HOME}/bin" >> "$GITHUB_PATH"
+          fi
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust-toolchain
+        with:
+          toolchain: stable
+          cache: true
+
+      # ---------- apt ----------
+      # 把 deb 缓存到项目目录 .apt-cache/，下次直接复用
+      - name: Restore apt cache
+        run: |
+          if [ -d ".apt-cache" ]; then
+            mkdir -p /var/cache/apt/archives/partial
+            cp -r .apt-cache/*.deb /var/cache/apt/archives/ 2>/dev/null || true
+            echo "✅ apt 缓存恢复: $(ls .apt-cache/*.deb 2>/dev/null | wc -l) 个包"
+          else
+            echo "⚠️  无 apt 缓存"
+          fi
+
+      - name: Install Linux deps
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libayatana-appindicator3-dev
+
+      - name: Save apt cache
+        run: |
+          mkdir -p .apt-cache
+          cp -r /var/cache/apt/archives/*.deb .apt-cache/ 2>/dev/null || true
+          echo "✅ apt 缓存保存: $(ls .apt-cache/*.deb 2>/dev/null | wc -l) 个包"
+
+      # ---------- 构建 ----------
+      - name: Install frontend
+        run: npm install
+
+      - name: Tauri build (dry sanity check)
+        run: |
+          echo "--- tauri info ---"
+          npx tauri info || true
+          echo "--- cargo check ---"
+          cargo check --manifest-path src-tauri/Cargo.toml
+
+      # ---- Tauri 完整构建 ----
+      - name: Tauri build
+        run: npm run tauri build
+
+      # ---------- 产物 ----------
+      - name: Copy bundle to workspace (_artifacts/)
+        # --bind 挂载了项目目录，写入 _artifacts/ 后宿主机可见
+        run: |
+          OUTDIR="_artifacts/debug-bundle"
+          mkdir -p "${OUTDIR}"
+          if [ -d src-tauri/target/release/bundle ] && [ "$(ls -A src-tauri/target/release/bundle/)" ]; then
+            echo "=== 复制 bundle → ${OUTDIR} ==="
+            cp -rv src-tauri/target/release/bundle/* "${OUTDIR}/"
+          else
+            echo "bundle 目录为空或不存在，至少保存 Cargo.toml 作标记"
+            cp -v src-tauri/Cargo.toml "${OUTDIR}/"
+          fi
+          echo "=== 文件清单 ==="
+          find "${OUTDIR}" -type f -ls

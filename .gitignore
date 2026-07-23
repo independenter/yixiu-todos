@@ -32,6 +32,7 @@ data/
 *.log
 .playwright
 .playwright-cli
-*.yaml
 *.png
+.github/actions
 .claude/
+_artifacts

@@ -1,3 +1,11 @@
+# =============================================================================
+# release —— 打 tag 时构建并发布 Tauri 桌面应用
+#   tag: v* 触发，三平台并行构建
+#   产出物（单个 artifact）：
+#     Ubuntu  → .deb + .AppImage
+#     macOS   → .dmg (+ .app 打包在其中)
+#     Windows → .msi + .exe (NSIS)
+# =============================================================================
 name: release
 
 on:
@@ -5,19 +13,37 @@ on:
     tags:
       - 'v*'
 
+# 不要并发发布同一 tag
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   build:
+    name: build-${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-22.04, windows-latest, macos-latest]
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+      # 一个平台失败不影响其它平台产出
+      fail-fast: false
     runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
 
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---- Node.js ----
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      # ---- Rust ----
+      - name: Limit cargo memory usage
+        run: |
+          echo "CARGO_BUILD_JOBS=1" >> "$GITHUB_ENV"
+          echo "CARGO_PROFILE_RELEASE_LTO=thin" >> "$GITHUB_ENV"
+          echo "CARGO_PROFILE_RELEASE_CODEGEN_UNITS=2" >> "$GITHUB_ENV"
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@main
@@ -26,29 +52,74 @@ jobs:
           components: rustfmt, clippy
           cache: true
 
+      # ---- 系统依赖 ----
       - name: Install Linux deps
         if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt update
-          sudo apt install libwebkit2gtk-4.1-dev \
-              build-essential \
-              curl \
-              wget \
-              file \
-              libxdo-dev \
-              libssl-dev \
-              libayatana-appindicator3-dev \
-              librsvg2-dev
+          sudo apt install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libayatana-appindicator3-dev \
+            build-essential \
+            libssl-dev \
+            libxdo-dev
 
+      # macOS: Xcode CLI tools 已预装在 GitHub runner 上
+      - name: Install macOS deps
+        if: matrix.os == 'macos-latest'
+        run: echo "✅ macOS deps 已就绪（系统 WebKit + Xcode CLI）"
+
+      # Windows: WebView2 + MSVC 已预装在 windows-latest 上
+      - name: Install Windows deps
+        if: matrix.os == 'windows-latest'
+        run: echo "✅ Windows deps 已就绪（WebView2 + MSVC）"
+
+      # ---- 前端构建 ----
       - name: Install frontend
         run: npm install
 
+      # ---- Tauri 构建 ----
       - name: Tauri build
         run: npm run tauri build
 
-      - name: Upload artifacts
+      # ---- 上传产物 ----
+      - name: Upload bundle
         uses: actions/upload-artifact@v4
         with:
-          name: bundle-${{ matrix.os }}
-          path: |
-            src-tauri/target/release/bundle/**/*
+          name: yixiu-todos-${{ matrix.os }}
+          path: src-tauri/target/release/bundle/**/*
+          if-no-files-found: error
+          compression-level: 0
+
+  # ===========================================================================
+  # 发布 —— 等所有平台的构建完成后，汇总产物创建 GitHub Release
+  # ===========================================================================
+  publish:
+    name: publish
+    needs: [build]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write                      # 创建 Release
+    steps:
+      - name: Download all bundles
+        uses: actions/download-artifact@v4
+        with:
+          pattern: yixiu-todos-*
+          merge-multiple: true
+          path: bundles
+
+      - name: Display bundle structure
+        run: find bundles -type f -ls
+
+      - name: Create Release & upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          name: yixiu-todos ${{ github.ref_name }}
+          body_path: CHANGELOG.md || true   # 可选，有 CHANGELOG 则用
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: false
+          files: bundles/**
+          generate_release_notes: true      # 自动生成发布说明
