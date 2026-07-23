@@ -36,3 +36,5 @@ data/
 .github/actions
 .claude/
 _artifacts
+.rustup
+.cargo

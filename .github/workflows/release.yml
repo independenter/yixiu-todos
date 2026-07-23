@@ -46,7 +46,7 @@ jobs:
           echo "CARGO_PROFILE_RELEASE_CODEGEN_UNITS=2" >> "$GITHUB_ENV"
 
       - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@main
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
           components: rustfmt, clippy
@@ -89,7 +89,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: yixiu-todos-${{ matrix.os }}
-          path: src-tauri/target/release/bundle/**/*
+          path: target/release/bundle/**/*
           if-no-files-found: error
           compression-level: 0
 
@@ -117,7 +117,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: yixiu-todos ${{ github.ref_name }}
-          body_path: CHANGELOG.md || true   # 可选，有 CHANGELOG 则用
           draft: false
           prerelease: false
           fail_on_unmatched_files: false
