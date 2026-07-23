@@ -22,11 +22,15 @@ pub async fn send_notification(
     let mut n = Notification::new();
     n.summary(&title).body(&body);
 
+    // urgency 仅 Linux D-Bus 支持，macOS/Windows 静默忽略
+    #[cfg(target_os = "linux")]
     match urgency.as_deref() {
         Some("critical") => { let _ = n.urgency(notify_rust::Urgency::Critical); }
         Some("low")      => { let _ = n.urgency(notify_rust::Urgency::Low); }
         _                  => { let _ = n.urgency(notify_rust::Urgency::Normal); }
     }
+    #[cfg(not(target_os = "linux"))]
+    let _ = urgency;
 
     match n.show() {
         Ok(_) => {
@@ -92,11 +96,15 @@ async fn send_notification_impl(
     use notify_rust::Notification;
     let mut n = Notification::new();
     n.summary(title).body(body);
+    #[cfg(target_os = "linux")]
     match urgency {
         "critical" => { let _ = n.urgency(notify_rust::Urgency::Critical); }
         "low"      => { let _ = n.urgency(notify_rust::Urgency::Low); }
         _            => { let _ = n.urgency(notify_rust::Urgency::Normal); }
     }
+    #[cfg(not(target_os = "linux"))]
+    let _ = urgency;
+
     n.show().map_err(|e| e.to_string())?;
     Ok(())
 }

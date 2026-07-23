@@ -94,10 +94,11 @@ jobs:
           compression-level: 0
 
   # ===========================================================================
-  # 发布 —— 等所有平台的构建完成后，汇总产物创建 GitHub Release
+  # 发布 —— 只要有至少一个平台构建成功就创建 Release
   # ===========================================================================
   publish:
     name: publish
+    if: ${{ !cancelled() && contains(needs.*.result, 'success') }}
     needs: [build]
     runs-on: ubuntu-22.04
     permissions:

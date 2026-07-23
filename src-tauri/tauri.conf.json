@@ -33,7 +33,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/icon.png"],
+    "icon": ["icons/icon.png", "icons/icon.ico", "icons/icon.icns"],
     "category": "Productivity",
     "shortDescription": "个人/团队待办管理 + 精力占用面板",
     "longDescription": "跨平台待办管理软件，支持优先级、时间冲突检测、精力占用面板、员工任务管理、强制录入规则与定时提醒。"
