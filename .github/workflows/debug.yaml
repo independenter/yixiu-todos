@@ -102,17 +102,20 @@ jobs:
         run: npm run tauri build
 
       # ---------- 产物 ----------
+      # 注意: Tauri 用 workspace 根 Cargo.toml，target 在项目根目录
       - name: Copy bundle to workspace (_artifacts/)
         # --bind 挂载了项目目录，写入 _artifacts/ 后宿主机可见
         run: |
           OUTDIR="_artifacts/debug-bundle"
           mkdir -p "${OUTDIR}"
-          if [ -d src-tauri/target/release/bundle ] && [ "$(ls -A src-tauri/target/release/bundle/)" ]; then
+          if [ -d target/release/bundle ] && [ "$(ls -A target/release/bundle/)" ]; then
             echo "=== 复制 bundle → ${OUTDIR} ==="
-            cp -rv src-tauri/target/release/bundle/* "${OUTDIR}/"
+            cp -rv target/release/bundle/* "${OUTDIR}/"
           else
             echo "bundle 目录为空或不存在，至少保存 Cargo.toml 作标记"
             cp -v src-tauri/Cargo.toml "${OUTDIR}/"
           fi
+          # 容器内 root 创建的文件，设 755 让宿主机可读
+          chmod -R a+rwX "${OUTDIR}"
           echo "=== 文件清单 ==="
           find "${OUTDIR}" -type f -ls
